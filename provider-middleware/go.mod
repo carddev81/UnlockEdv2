@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect

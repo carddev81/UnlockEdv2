@@ -57,7 +57,14 @@ type BrightspaceEnrollment struct {
 }
 
 func (srv *BrightspaceService) IntoImportUser(bsUser BrightspaceUser) *models.ImportUser {
-	return nil
+	user := models.ImportUser{
+		Username:       bsUser.UserName,
+		NameFirst:      bsUser.FirstName,
+		NameLast:       bsUser.LastName,
+		Email:          bsUser.ExternalEmail,
+		ExternalUserID: bsUser.UserId,
+	}
+	return &user
 }
 
 func (srv *BrightspaceService) IntoCourse(bsCourse BrightspaceCourse) *models.Course {
