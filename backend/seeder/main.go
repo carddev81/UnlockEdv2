@@ -154,12 +154,15 @@ func seedTestData(db *gorm.DB) {
 		if err := testServer.HandleCreateUserKratos(users[idx].Username, "ChangeMe!"); err != nil {
 			log.Fatalf("unable to create test user in kratos")
 		}
+		var mapping models.ProviderUserMapping
 		for i := 0; i < len(platforms); i++ {
-			mapping := models.ProviderUserMapping{
-				UserID:             users[idx].ID,
-				ProviderPlatformID: platforms[i].ID,
-				ExternalUsername:   users[idx].Username,
-				ExternalUserID:     strconv.Itoa(idx),
+			if platforms[i].Type != models.Brightspace { //omitting brightspace here, we don';t want bad users in the seeded data...we want real users
+				mapping = models.ProviderUserMapping{
+					UserID:             users[idx].ID,
+					ProviderPlatformID: platforms[i].ID,
+					ExternalUsername:   users[idx].Username,
+					ExternalUserID:     strconv.Itoa(idx),
+				}
 			}
 			if err = db.Create(&mapping).Error; err != nil {
 				log.Printf("Failed to create provider user mapping: %v", err)
