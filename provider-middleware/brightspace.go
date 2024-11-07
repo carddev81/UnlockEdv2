@@ -33,7 +33,7 @@ type BrightspaceService struct {
 	AccessToken        string
 	BaseHeaders        *map[string]string
 	JobParams          *map[string]interface{}
-	IsDownloaded       bool //flag to let program know that bulk data has been downloaded
+	IsDownloaded       bool //flag to let process know that bulk data has been downloaded
 	CsvFileMap         map[string]string
 }
 

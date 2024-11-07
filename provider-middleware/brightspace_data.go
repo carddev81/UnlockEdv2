@@ -110,23 +110,16 @@ func (srv *BrightspaceService) IntoCourse(bsCourse BrightspaceCourse) *models.Co
 	defer response.Body.Close()
 	var imgPath string
 	var imgBytes []byte
-	switch response.StatusCode {
-	case http.StatusNotFound:
-		log.Warnf("status of not found returned, using default Brightspace image, url is %v", courseImageUrl)
-		imgBytes, err = getDefaultImg()
-	case http.StatusOK:
+	if response.StatusCode == http.StatusOK {
 		imgBytes, err = io.ReadAll(response.Body)
-	case http.StatusForbidden:
-		log.Warnf("status of forbidden returned, using default Brightspace image, url is %v", courseImageUrl)
-		imgBytes, err = getDefaultImg()
-	}
-	if err != nil {
-		imgPath = ""
-	} else {
-		imgPath, err = UploadBrightspaceImage(imgBytes, id)
 		if err != nil {
-			log.Errorf("error during upload of Brightspace image to UnlockEd, id used was: %v error is %v", id, err)
-			imgPath = ""
+			imgPath = "/brightspace.jpg"
+		} else {
+			imgPath, err = UploadBrightspaceImage(imgBytes, id)
+			if err != nil {
+				log.Errorf("error during upload of Brightspace image to UnlockEd, id used was: %v error is %v", id, err)
+				imgPath = "/brightspace.png"
+			}
 		}
 	}
 	course := models.Course{
@@ -278,7 +271,7 @@ func (srv *BrightspaceService) downloadAndUnzipFile(targetFileName string, endpo
 			return destPath, err
 		}
 		defer func() {
-			zipFile.Close()           //close it later
+			zipFile.Close()
 			cleanUpFiles(zipFilePath) //delete zipfile here
 		}()
 		for _, zippedFile := range zipFile.File {

@@ -412,7 +412,28 @@ export enum ProviderPlatformType {
     CANVAS_CLOUD = 'canvas_cloud',
     CANVAS_OSS = 'canvas_oss',
     KOLIBRI = 'kolibri',
-    BRIGHTSPACE = 'brightspace'
+     BRIGHTSPACE = 'brightspace'
+}
+
+export enum CreditType {
+    ACADEMIC_CREDIT = 'Academic Credit',
+    PARTICIPATION_CREDIT = 'Participation Credit',
+    CERTIFICATE_OF_COMPLETION = 'Certificate of Completion',
+    EARNED_TIME_CREDIT = 'Earned-Time Credit',
+    REHABILITATION_CREDIT = 'Rehabilitation Credit'
+}
+export enum ProgramStatus {
+    AVAILABLE = 'AVAILABLE',
+    ACTIVE = 'ACTIVE',
+    INACTIVE = 'INACTIVE',
+    ARCHIVED = 'ARCHIVED'
+}
+
+export enum ProgramType {
+    EDUCATIONAL = 'EDUCATIONAL',
+    VOCATIONAL = 'VOCATIONAL',
+    LIFE_SKILLS = 'LIFE SKILLS',
+    THERAPEUTIC = 'THERAPEUTIC'
 }
 
 export interface AdminDashboardJoin {
