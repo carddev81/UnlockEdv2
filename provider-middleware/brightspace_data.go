@@ -191,18 +191,6 @@ func UploadBrightspaceImage(imgBytes []byte, bsCourseId string) (string, error) 
 	return urlRes.Data.Url, nil
 }
 
-func getDefaultImg() ([]byte, error) {
-	defaultImgPath := "default-images/brightspace.jpg"
-	bsFile, err := os.Open(defaultImgPath)
-	if err != nil {
-		log.Errorf("error opening file %v, error is: %v", defaultImgPath, err)
-		return nil, err
-	}
-	defer bsFile.Close()
-	imgBytes, err := io.ReadAll(bsFile)
-	return imgBytes, err
-}
-
 func (srv *BrightspaceService) getPluginId(pluginName string) (string, error) {
 	var pluginId string
 	resp, err := srv.SendRequest(DataSetsEndpoint)
