@@ -282,6 +282,11 @@ export interface ResetPasswordResponse {
     message: string;
 }
 
+export interface ProviderResponse {
+    platform?: ProviderPlatform;
+    oauth2Url?: string;
+}
+
 export interface Facility {
     [key: string]: string | number;
     id: number;
@@ -476,7 +481,8 @@ export enum OpenContentProviderType {
 export enum ProviderPlatformType {
     CANVAS_CLOUD = 'canvas_cloud',
     CANVAS_OSS = 'canvas_oss',
-    KOLIBRI = 'kolibri'
+    KOLIBRI = 'kolibri',
+    BRIGHTSPACE = 'brightspace'
 }
 
 export enum CreditType {

@@ -76,6 +76,14 @@ func seedTestData(db *gorm.DB) {
 			Type:      models.Kolibri,
 			State:     models.Enabled,
 			AccessKey: "testing_key_replace_me",
+		},
+		{
+			Name:      "Brightspace",
+			BaseUrl:   "https://unlocked.brightspacedemo.com",
+			AccountID: "db43ef62-1e97-48a1-832e-7eb81da41e63", //clientID
+			Type:      models.Brightspace,
+			State:     models.Disabled,
+			AccessKey: "HoYRWo-yTg7tFJ_9T_1FEQx8FXWP2UKtvr8j7sQidII;rt.us-east-1.vWqeE6yvAqOI-Vy5dWZbf6S6aOl4e3udhtG-50r7Z88", //ClientSecret;refresh-token
 		}}
 	for idx := range platforms {
 		if err := db.Create(&platforms[idx]).Error; err != nil {
@@ -146,12 +154,15 @@ func seedTestData(db *gorm.DB) {
 		if err := testServer.HandleCreateUserKratos(users[idx].Username, "ChangeMe!"); err != nil {
 			log.Fatalf("unable to create test user in kratos")
 		}
+		var mapping models.ProviderUserMapping
 		for i := 0; i < len(platforms); i++ {
-			mapping := models.ProviderUserMapping{
-				UserID:             users[idx].ID,
-				ProviderPlatformID: platforms[i].ID,
-				ExternalUsername:   users[idx].Username,
-				ExternalUserID:     strconv.Itoa(idx),
+			if platforms[i].Type != models.Brightspace { //omitting brightspace here, we don't want bad users in the seeded data...we want real users
+				mapping = models.ProviderUserMapping{
+					UserID:             users[idx].ID,
+					ProviderPlatformID: platforms[i].ID,
+					ExternalUsername:   users[idx].Username,
+					ExternalUserID:     strconv.Itoa(idx),
+				}
 			}
 			if err = db.Create(&mapping).Error; err != nil {
 				log.Printf("Failed to create provider user mapping: %v", err)
@@ -294,46 +305,46 @@ func createFacilityPrograms(db *gorm.DB) ([]models.ProgramSection, error) {
 	for idx := range facilities {
 		prog := []models.Program{
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Academic Credit",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Academic Credit",
 				ProgramStatus: "ACTIVE",
-				ProgramType: "EDUCATIONAL",
+				ProgramType:   "EDUCATIONAL",
 			},
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Participation Credit",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Participation Credit",
 				ProgramStatus: "AVAILABLE",
-				ProgramType: "VOCATIONAL",
+				ProgramType:   "VOCATIONAL",
 			},
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Certificate of Completion",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Certificate of Completion",
 				ProgramStatus: "INACTIVE",
-				ProgramType: "LIFE SKILLS",
+				ProgramType:   "LIFE SKILLS",
 			},
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Earned-Time Credit",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Earned-Time Credit",
 				ProgramStatus: "ARCHIVED",
-				ProgramType: "EDUCATIONAL",
+				ProgramType:   "EDUCATIONAL",
 			},
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Rehabilitation Credit",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Rehabilitation Credit",
 				ProgramStatus: "AVAILABLE",
-				ProgramType: "EDUCATIONAL",
+				ProgramType:   "EDUCATIONAL",
 			},
 			{
-				Name:        randNames[rand.Intn(len(randNames))],
-				Description: "Testing program",
-				CreditType:  "Participation Credit",
+				Name:          randNames[rand.Intn(len(randNames))],
+				Description:   "Testing program",
+				CreditType:    "Participation Credit",
 				ProgramStatus: "AVAILABLE",
-				ProgramType: "THERAPEUTIC",
+				ProgramType:   "THERAPEUTIC",
 			},
 		}
 		for i := range prog {

@@ -155,7 +155,9 @@ func (srv *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, log 
 	if userNameExists {
 		return newBadRequestServiceError(err, "userexists")
 	}
-	reqForm.User.Username = stripNonAlphaChars(reqForm.User.Username)
+	reqForm.User.Username = stripNonAlphaChars(reqForm.User.Username, func(char rune) bool {
+		return unicode.IsLetter(char) || unicode.IsDigit(char)
+	})
 
 	err = srv.Db.CreateUser(&reqForm.User)
 	if err != nil {
@@ -225,6 +227,7 @@ func (srv *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, log 
 
 /**
 * PATCH: /api/users/{id}
+* NOTE: Method is not configured to update (sync) role and username fields within kratos identity (Traits)
 **/
 func (srv *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request, log sLog) error {
 	id, err := strconv.Atoi(r.PathValue("id"))
