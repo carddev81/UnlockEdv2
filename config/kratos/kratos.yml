@@ -35,12 +35,13 @@ oauth2_provider:
   url: http://hydra:4445
 
 selfservice:
-  default_browser_return_url: http://127.0.0.1/authcallback
+  default_browser_return_url: https://127.0.0.1/authcallback
   allowed_return_urls:
-    - http://127.0.0.1/authcallback
+    - https://127.0.0.1/authcallback
     - http://127.0.0.1:4455
     - /dashboard
     - http://127.0.0.1/dashboard
+    - https://127.0.0.1/dashboard
 
   methods:
     password:
@@ -81,10 +82,10 @@ selfservice:
 
     logout:
       after:
-        default_browser_return_url: http://127.0.0.1/
+        default_browser_return_url: https://127.0.0.1/
 
     login:
-      ui_url: http://127.0.0.1/login
+      ui_url: https://127.0.0.1/login
       lifespan: 10m
 
     registration:

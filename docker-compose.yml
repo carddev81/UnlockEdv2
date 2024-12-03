@@ -31,13 +31,16 @@ services:
   rev_proxy:
     image: nginx:1.21.3-alpine
     ports:
-      - 80:80
+      - 443:443
     volumes:
       - ./config/dev.nginx.conf:/etc/nginx/conf.d/default.conf
       - logs:/var/log/nginx/
+      - type: bind
+        source: ./config/nginx/certs
+        target: /etc/nginx/certs
     networks:
       - intranet
-    restart: unless-stopped 
+    restart: unless-stopped
     depends_on:
       kratos-migrate:
         condition: service_completed_successfully
@@ -58,7 +61,7 @@ services:
       - APP_DSN=postgres://unlocked:dev@postgres:5432/unlocked
       - APP_ENV=production
       - LOG_LEVEL=debug
-      - APP_URL=http://127.0.0.1
+      - APP_URL=https://127.0.0.1
       - APP_KEY=base64:NTQxODNmNDMyM2YzNzdiNzM3NDMzYTFlOTgyMjllYWQwZmRjNjg2ZjkzYmFiMDU3ZWNiNjEyZGFhOTQwMDJiNSAgLQo=
       - PROVIDER_SERVICE_URL=http://provider-service:8081
       - HYDRA_ADMIN_URL=http://hydra:4445
@@ -95,16 +98,16 @@ services:
       - NATS_URL=nats:4222
       - NATS_USER=unlocked
       - NATS_PASSWORD=dev
-      - APP_URL=http://server:8080 
+      - APP_URL=http://server:8080
     networks:
       - intranet
     volumes:
       - logs:/logs
       - ./frontend/public/videos:/videos
-      - ./:/app 
+      - ./:/app
     ports:
       - 8081:8081
-    restart: unless-stopped 
+    restart: unless-stopped
     depends_on: [server]
 
   # Scheduler + task runner for provider-middleware
@@ -127,7 +130,7 @@ services:
       - intranet
     volumes:
       - logs:/logs
-      - ./:/app 
+      - ./:/app
     depends_on: [provider-service]
 
   keto-migrate:

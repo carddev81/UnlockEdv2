@@ -3,9 +3,11 @@ serve:
     cors:
       enabled: true
       allowed_origins:
-        - http://127.0.0.1
-        - http://localhost
-        - https://staging.canvas.unlockedlabs.xyz
+      - http://127.0.0.1
+      - https://127.0.0.1
+      - http://localhost
+      - https://localhost
+      - https://staging.canvas.unlockedlabs.xyz
       allowed_methods:
         - POST
         - GET
@@ -23,6 +25,7 @@ serve:
       enabled: true
       allowed_origins:
         - http://localhost
+        - https://localhost
         - https://staging.canvas.unlockedlabs.xyz
       allowed_methods:
         - POST
@@ -42,10 +45,10 @@ log:
 
 urls:
   self:
-    issuer: http://127.0.0.1
-  login: http://127.0.0.1/self-service/login/browser
-  consent: http://127.0.0.1/consent
-  logout: http://127.0.0.1/logout
+    issuer: https://127.0.0.1
+  login: https://127.0.0.1/self-service/login/browser
+  consent: https://127.0.0.1/consent
+  logout: https://127.0.0.1/logout
   identity_provider:
     url: http://kratos:4434/admin
     publicUrl: http://kratos:4433
