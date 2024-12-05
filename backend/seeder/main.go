@@ -67,14 +67,14 @@ func seedTestData(db *gorm.DB) {
 			BaseUrl:   "https://canvas.staging.unlockedlabs.xyz",
 			AccountID: "1",
 			Type:      models.CanvasOSS,
-			State:     models.Enabled,
+			State:     models.Disabled,
 			AccessKey: "testing_key_replace_me",
 		}, {
 			Name:      "Kolibri",
 			BaseUrl:   "https://kolibri.staging.unlockedlabs.xyz",
 			AccountID: "1234567890",
 			Type:      models.Kolibri,
-			State:     models.Enabled,
+			State:     models.Disabled,
 			AccessKey: "testing_key_replace_me",
 		},
 		{
