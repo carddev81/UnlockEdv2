@@ -31,10 +31,13 @@ services:
   rev_proxy:
     image: nginx:1.21.3-alpine
     ports:
-      - 80:80
+      - 443:443
     volumes:
       - ./config/dev.nginx.conf:/etc/nginx/conf.d/default.conf
       - logs:/var/log/nginx/
+      - type: bind
+        source: ./config/nginx/certs
+        target: /etc/nginx/certs
     networks:
       - intranet
     restart: unless-stopped
@@ -58,7 +61,7 @@ services:
       - APP_DSN=postgres://unlocked:dev@postgres:5432/unlocked
       - APP_ENV=production
       - LOG_LEVEL=debug
-      - APP_URL=http://127.0.0.1
+      - APP_URL=https://127.0.0.1
       - APP_KEY=base64:NTQxODNmNDMyM2YzNzdiNzM3NDMzYTFlOTgyMjllYWQwZmRjNjg2ZjkzYmFiMDU3ZWNiNjEyZGFhOTQwMDJiNSAgLQo=
       - PROVIDER_SERVICE_URL=http://provider-service:8081
       - HYDRA_ADMIN_URL=http://hydra:4445
