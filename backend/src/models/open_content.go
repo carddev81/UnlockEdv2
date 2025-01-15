@@ -69,7 +69,7 @@ const (
 	KolibriDescription      string = "Kolibri provides an extensive library of educational content suitable for all learning levels."
 	KiwixThumbnailURL       string = "/kiwix.jpg"
 	KiwixDescription        string = "Kiwix is an offline reader that allows you to host a wide array of educational content."
-	KiwixLibraryUrl         string = "https://library.kiwix.org"
+	KiwixLibraryUrl         string = "https://kiwix.staging.unlockedlabs.xyz"
 	YoutubeThumbnail        string = "/youtube.png"
 	Youtube                 string = "Youtube"
 	YoutubeApi              string = "https://www.googleapis.com/youtube/v3/videos"

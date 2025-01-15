@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"gorm.io/gorm"
@@ -36,6 +37,7 @@ type KiwixService struct {
 
 func NewKiwixService(openContentProvider *models.OpenContentProvider, params *map[string]interface{}) *KiwixService {
 	url := fmt.Sprintf("%s%s%d", openContentProvider.Url, KiwixCatalogUrl, maxLibraries())
+	fmt.Println("url:>>>>>>", url)
 	client := http.Client{}
 	jobID := (*params)["job_id"].(string)
 	return &KiwixService{
@@ -47,14 +49,21 @@ func NewKiwixService(openContentProvider *models.OpenContentProvider, params *ma
 		JobID:                 jobID,
 	}
 }
-
+func sanitizeXML(input string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+	)
+	return replacer.Replace(input)
+}
 func (ks *KiwixService) ImportLibraries(ctx context.Context, db *gorm.DB) error {
-	logger().Infoln("Importing libraries from Kiwix")
+	logger().Infoln("Importing libraries from Kiwix did it make it here::::>>>>>>>>>>" + ks.Url)
 	req, err := http.NewRequest(http.MethodGet, ks.Url, nil)
+	fmt.Println("did it make it here::::>>>>>>>>>>", ks.Url)
 	if err != nil {
 		logger().Errorf("error creating request: %v", err)
 		return err
 	}
+	logger().Infoln("new request made!!!")
 	resp, err := ks.Client.Do(req)
 	if err != nil {
 		logger().Errorf("error fetching data from url: %v", err)
@@ -62,12 +71,17 @@ func (ks *KiwixService) ImportLibraries(ctx context.Context, db *gorm.DB) error 
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
+	logger().Infoln("body read!!!!")
+
 	if err != nil {
 		logger().Errorf("error reading data: %v", err)
 		return err
 	}
+	fmt.Println("Original Body:\n", string(body))
+	sanitizedBody := sanitizeXML(string(body))
+	fmt.Println("Sanitized Body:\n", sanitizedBody)
 	var feed Feed
-	err = xml.Unmarshal(body, &feed)
+	err = xml.Unmarshal([]byte(sanitizedBody), &feed)
 	if err != nil {
 		logger().Errorf("error parsing data: %v", err)
 		return err

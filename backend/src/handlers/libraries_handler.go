@@ -3,13 +3,19 @@ package handlers
 import (
 	"UnlockEdv2/src/models"
 	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"io"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 )
 
 func (srv *Server) registerLibraryRoutes() []routeDef {
 	axx := models.Feature(models.OpenContentAccess)
 	return []routeDef{
+		{"GET /api/libraries/{id}/search", srv.handleSearchLibraries, false, axx},
 		{"GET /api/libraries", srv.handleIndexLibraries, false, axx},
 		{"GET /api/libraries/{id}", srv.handleGetLibrary, false, axx},
 		{"PUT /api/libraries/{id}/toggle", srv.handleToggleLibraryVisibility, true, axx},
@@ -53,6 +59,69 @@ func (srv *Server) handleGetLibrary(w http.ResponseWriter, r *http.Request, log 
 		return newDatabaseServiceError(err)
 	}
 	return writeJsonResponse(w, http.StatusOK, library)
+}
+
+func (srv *Server) handleSearchLibraries(w http.ResponseWriter, r *http.Request, log sLog) error {
+	page, perPage := srv.getPaginationInfo(r)
+	fmt.Println(page)
+	id, err := strconv.Atoi(r.PathValue("id")) //library id
+	if err != nil {                            //start  --//pageLength
+		return newInvalidIdServiceError(err, "library id")
+	}
+	pattern := r.URL.Query().Get("pattern")
+	library, err := srv.Db.GetLibraryByID(id)
+	if err != nil {
+		log.add("library_id", id)
+		return newDatabaseServiceError(err)
+	}
+	navigate := (page-1)*perPage + 1
+	// `libraries/${libraryId}/search?pattern=${searchTerm}&page=${
+	//                     (page - 1) * perPage + 1
+	//                 }&per_page=${perPage}`
+	//build url request
+	//"/search?books.name=askubuntu.com_en_all_2024-10pattern=the&format=xml
+	kiwixSearchURL := fmt.Sprintf("%s/search?books.name=%s&pattern=%s&format=xml&start=%d&pageLength=%d", models.KiwixLibraryUrl, path.Base(library.Url), pattern, navigate, perPage)
+	fmt.Println(kiwixSearchURL)
+	// Make the HTTP GET request
+	resp, err := http.Get(kiwixSearchURL)
+	if err != nil {
+		fmt.Printf("Error making the request: %v\n", err)
+		return newInternalServerServiceError(err, "unable to make get request to kiwix")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Error: Received status code %d\n", resp.StatusCode)
+		return newInternalServerServiceError(err, "bad request going to add status code to this message!!!!")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading the response body: %v\n", err)
+		return newInternalServerServiceError(err, "unable to read response body")
+	}
+
+
+	var rss models.RSS
+	err = xml.Unmarshal(body, &rss)
+	if err != nil {
+		fmt.Printf("Error parsing XML: %v\n", err)
+		return newInternalServerServiceError(err, "unable to parse xml")
+	}
+
+	fmt.Println(rss.Channel.ItemsPerPage, "vvvv", rss.Channel.StartIndex, "vvvv", rss.Channel.TotalResults)
+	total, err := strconv.ParseInt(strings.ReplaceAll(rss.Channel.TotalResults, ",", ""), 10, 64)
+	if err != nil {
+		fmt.Printf("Error parsing XML: %v\n", err)
+		return newInternalServerServiceError(err, "unable to make get request to kiwi")
+	}
+	paginationData := models.NewPaginationInfo(page, perPage, int64(total))
+
+	channels := make([]*models.KiwixChannel, 0, 1)
+	fmt.Println("made it")
+	channels = append(channels, rss.IntoKiwixChannel(library))//going to change this once multiple libraries can be searched through
+
+	return writePaginatedResponse(w, http.StatusOK, channels, paginationData)
 }
 
 func (srv *Server) handleToggleLibraryVisibility(w http.ResponseWriter, r *http.Request, log sLog) error {

@@ -863,8 +863,22 @@ export interface TitleHandler {
     path?: string[];
 }
 
-export interface ActivityMapData {
-    date: string;
-    total_time: string;
-    quartile: number;
+export interface KiwixChannel {
+    title: string;
+    thumbnail_url: string;
+    link: string;
+    description: string;
+    total_results: string;
+    start_index: string;
+    items_per_page: string;
+    items?: KiwixItem[];
+}
+
+export interface KiwixItem {
+    title: string;
+    link: string;
+    thumbnail_url: string;
+    description: string;
+    book: string;
+    word_count: string;
 }
