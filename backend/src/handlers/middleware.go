@@ -52,7 +52,11 @@ func (srv *Server) videoProxyMiddleware(next http.Handler) http.Handler {
 		thumbnailUrl := r.URL.Query().Get("thumbnail_url")
 		resourceID := r.PathValue("id")
 		if externalID != "" {
-			vidID, _ := strconv.Atoi(resourceID)
+			vidID, err := strconv.Atoi(resourceID)
+			if err != nil {
+				srv.errorResponse(w, http.StatusNotFound, "Video not found, is not available or visibility is not enabled")
+				return
+			}
 			video = models.Video{
 				ExternalID:   externalID,
 				ThumbnailUrl: thumbnailUrl,
