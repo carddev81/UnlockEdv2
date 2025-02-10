@@ -46,17 +46,31 @@ func (srv *Server) videoProxyMiddleware(next http.Handler) http.Handler {
 			http.Redirect(w, r, AuthCallbackRoute, http.StatusSeeOther)
 			return
 		}
-		resourceID := r.PathValue("id")
 		var video models.Video
-		tx := srv.Db.Model(&models.Video{}).Where("id = ?", resourceID)
-		if user.isAdmin() {
-			tx = tx.First(&video)
+
+		externalID := r.URL.Query().Get("external_id")
+		thumbnailUrl := r.URL.Query().Get("thumbnail_url")
+		resourceID := r.PathValue("id")
+		if externalID != "" {
+			vidID, _ := strconv.Atoi(resourceID)
+			video = models.Video{
+				ExternalID:   externalID,
+				ThumbnailUrl: thumbnailUrl,
+				DatabaseFields: models.DatabaseFields{
+					ID: uint(vidID),
+				},
+			}
 		} else {
-			tx = tx.First(&video, "visibility_status = true AND availability = 'available'")
-		}
-		if err := tx.Error; err != nil {
-			srv.errorResponse(w, http.StatusNotFound, "Video not found, is not available or visibility is not enabled")
-			return
+			tx := srv.Db.Model(&models.Video{}).Where("id = ?", resourceID)
+			if user.isAdmin() {
+				tx = tx.First(&video)
+			} else {
+				tx = tx.First(&video, "visibility_status = true AND availability = 'available'")
+			}
+			if err := tx.Error; err != nil {
+				srv.errorResponse(w, http.StatusNotFound, "Video not found, is not available or visibility is not enabled")
+				return
+			}
 		}
 		ctx := context.WithValue(r.Context(), videoKey, &video)
 		next.ServeHTTP(w, r.WithContext(ctx))

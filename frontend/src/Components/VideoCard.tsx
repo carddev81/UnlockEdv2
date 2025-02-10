@@ -94,7 +94,7 @@ export default function VideoCard({
             <div className="flex flex-col p-4 gap-2 border-b-2">
                 <figure className="w-1/2 mx-auto bg-cover">
                     <img
-                        src={video?.thumbnail_url ?? ''}
+                        src={`/api/proxy/thumbnails/${video.id}?external_id=${video.external_id}&thumbnail_url=${video.thumbnail_url}`}
                         alt={`${video.title} thumbnail`}
                     />
                 </figure>

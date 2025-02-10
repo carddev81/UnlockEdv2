@@ -37,6 +37,13 @@ type VideoService struct {
 	s3Svc                 *s3.Client
 }
 
+type FileType string
+
+const (
+	Mp4  FileType = "mp4"
+	Jpeg FileType = "jpg"
+)
+
 func NewVideoService(prov *models.OpenContentProvider, db *gorm.DB, body *map[string]interface{}) *VideoService {
 	// in development, this needs to remain empty unless you have s3 access
 	bucketName := os.Getenv("S3_BUCKET_NAME")
@@ -93,6 +100,23 @@ func (yt *VideoService) uploadFileToS3(ctx context.Context, file *os.File, video
 		return err
 	}
 	logger().Infof("Successfully uploaded file to %s/%s with ETAG: %s", yt.bucketName, video.GetS3KeyJson(), *jsonOutput.ETag)
+	return nil
+}
+
+func (yt *VideoService) uploadThumbnailToS3(ctx context.Context, file []byte, s3FileKey string) error {
+	logger().Infof("Uploading thumbnail to bucket: %s, key: %s", yt.bucketName, s3FileKey)
+	uploadParams := &s3.PutObjectInput{
+		Bucket:      aws.String(yt.bucketName),
+		Key:         aws.String(fmt.Sprintf("thumbnails/%s", s3FileKey)),
+		Body:        bytes.NewReader(file),
+		ContentType: aws.String("image/jpeg"),
+	}
+	output, err := yt.s3Svc.PutObject(ctx, uploadParams)
+	if err != nil {
+		logger().Errorf("error uploading thumbnail to s3: %v", err)
+		return err
+	}
+	logger().Infof("Successfully uploaded thumbnail to %s/%s with ETAG: %s", yt.bucketName, s3FileKey, *output.ETag)
 	return nil
 }
 
@@ -195,7 +219,7 @@ func (yt *VideoService) syncVideoMetadataFromS3(ctx context.Context) error {
 	return nil
 }
 
-func (yt *VideoService) downloadAndHostThumbnail(yt_id, url string) (string, error) {
+func (yt *VideoService) downloadAndHostThumbnail(ctx context.Context, yt_id, url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		logger().Errorf("error creating request: %v", err)
@@ -271,6 +295,14 @@ func (yt *VideoService) downloadAndHostThumbnail(yt_id, url string) (string, err
 		logger().Errorf("error decoding upload response: %v", err)
 		return "", err
 	}
+	//attempt to add to s3 here, still will have them saved locally
+	if !yt.fileExistsInS3(ctx, yt_id, Jpeg) && yt.s3Svc != nil {
+		err := yt.uploadThumbnailToS3(ctx, imgData, filename)
+		if err != nil {
+			logger().Errorf("error reading download result: %v", err)
+			return urlRes.Data.URL, err
+		}
+	}
 	return urlRes.Data.URL, nil
 }
 
@@ -317,13 +349,20 @@ func (vs *VideoService) retryFailedVideos(ctx context.Context) error {
 	return nil
 }
 
-func (vs *VideoService) videoExistsInS3(ctx context.Context, ytId string) bool {
+func (vs *VideoService) fileExistsInS3(ctx context.Context, ytId string, fileType FileType) bool {
 	if vs.s3Svc == nil {
 		return false
 	}
+	var key string
+	switch fileType {
+	case Mp4:
+		key = fmt.Sprintf("/videos/%s.mp4", ytId)
+	case Jpeg:
+		key = fmt.Sprintf("/thumbnails/%s.jpg", ytId)
+	}
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(vs.bucketName),
-		Key:    aws.String(fmt.Sprintf("/videos/%s.mp4", ytId)),
+		Key:    aws.String(key),
 	}
 	_, err := vs.s3Svc.HeadObject(ctx, input)
 	return err == nil
@@ -432,13 +471,13 @@ func (yt *VideoService) fetchAndSaveInitialVideoInfo(ctx context.Context, vidUrl
 		return nil, nil, err
 	}
 	logger().Println("info: ", result.Info)
-	thumbnail, err := yt.downloadAndHostThumbnail(result.Info.ID, result.Info.Thumbnail)
-	if err != nil {
-		thumbnail = "/youtube.png"
-	}
 	externId := result.Info.ID
 	if strings.Contains("youtu", vidUrl) {
 		externId = ytIdFromUrl(vidUrl)
+	}
+	thumbnail, err := yt.downloadAndHostThumbnail(ctx, externId, result.Info.Thumbnail)
+	if err != nil {
+		thumbnail = "/youtube.png"
 	}
 	vid := &models.Video{
 		Title:                 result.Info.Title,
@@ -496,7 +535,7 @@ func (yt *VideoService) downloadVideo(ctx context.Context, vidInfo *goutubedl.Re
 		logger().Println("info: ", result.Info)
 		vidInfo = &result
 	}
-	if yt.videoExistsInS3(ctx, vidInfo.Info.ID) {
+	if yt.fileExistsInS3(ctx, vidInfo.Info.ID, Mp4) {
 		return nil
 	}
 	downloadResult, err := vidInfo.Download(ctx, "best")

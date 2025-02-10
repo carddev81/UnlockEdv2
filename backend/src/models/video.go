@@ -29,7 +29,9 @@ func (vid *Video) GetS3KeyMp4() string {
 func (vid *Video) GetS3KeyJson() string {
 	return fmt.Sprintf("videos/%s.json", vid.ExternalID)
 }
-
+func (vid *Video) GetS3KeyJpg() string {
+	return fmt.Sprintf("thumbnails/%s.jpg", vid.ExternalID)
+}
 func (vid *Video) HasRecentAttempt() bool {
 	if vid.Attempts == nil {
 		return false

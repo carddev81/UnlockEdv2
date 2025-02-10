@@ -18,6 +18,7 @@ import (
 func (srv *Server) registerProxyRoutes() {
 	srv.Mux.Handle("GET /api/proxy/libraries/{id}/", srv.libraryProxyMiddleware(http.HandlerFunc(srv.handleForwardKiwixProxy)))
 	srv.Mux.Handle("GET /api/proxy/videos/{id}", srv.videoProxyMiddleware(http.HandlerFunc(srv.handleRedirectVideosS3)))
+	srv.Mux.Handle("GET /api/proxy/thumbnails/{id}", srv.videoProxyMiddleware(http.HandlerFunc(srv.handleRedirectThumbnailsS3)))
 }
 
 func (srv *Server) handleForwardKiwixProxy(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +91,10 @@ func (srv *Server) handleForwardKiwixProxy(w http.ResponseWriter, r *http.Reques
 	proxy.ServeHTTP(w, r)
 }
 
+func (srv *Server) handleRedirectThumbnailsLocal(w http.ResponseWriter, r *http.Request, video *models.Video) {
+	http.Redirect(w, r, video.ThumbnailUrl, http.StatusTemporaryRedirect)
+}
+
 func (srv *Server) handleRedirectVideosLocal(w http.ResponseWriter, r *http.Request, video *models.Video) {
 	http.Redirect(w, r, fmt.Sprintf("/videos/%s.mp4", video.ExternalID), http.StatusTemporaryRedirect)
 }
@@ -111,6 +116,26 @@ func (srv *Server) handleRedirectVideosS3(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		logrus.Printf("Error generating presigned URL: %v", err)
 		srv.errorResponse(w, http.StatusInternalServerError, "Error generating presigned URL")
+		return
+	}
+	http.Redirect(w, r, presignedURL.URL, http.StatusTemporaryRedirect)
+}
+
+func (srv *Server) handleRedirectThumbnailsS3(w http.ResponseWriter, r *http.Request) {
+	logrus.Infof("Redirecting to S3 for thumbnail %s", r.URL.Path)
+	video := r.Context().Value(videoKey).(*models.Video)
+	if srv.dev || video == nil || srv.s3Bucket == "" {
+		srv.handleRedirectThumbnailsLocal(w, r, video)
+		return
+	}
+	presignParams := &s3.GetObjectInput{
+		Bucket: aws.String(srv.s3Bucket),
+		Key:    aws.String(video.GetS3KeyJpg()),
+	}
+	presignedURL, err := srv.presigner.PresignGetObject(r.Context(), presignParams)
+	if err != nil {
+		logrus.Printf("Error generating presigned URL to thumbnail: %v", err)
+		srv.errorResponse(w, http.StatusInternalServerError, "Error generating thumbnail presigned URL")
 		return
 	}
 	http.Redirect(w, r, presignedURL.URL, http.StatusTemporaryRedirect)
