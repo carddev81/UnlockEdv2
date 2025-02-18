@@ -66,7 +66,7 @@ const StudentProfile = () => {
                     <div className="flex flex-row gap-6">
                         <div className="w-2/5 flex flex-col gap-4">
                             <div className="card card-row-padding overflow-hidden text-2xl items-center">
-                                <UserCircleIcon className="w-? h-?" />
+                                <UserCircleIcon className="w-1/4 h-1/4" />
                                 Michael Jackson
                                 {/* {user?.name_first +" "+user?.name_last} */}
                             </div>
