@@ -25,20 +25,19 @@ func (srv *Server) registerDashboardRoutes() []routeDef {
 }
 
 func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request, log sLog) error {
-	queryParams := r.URL.Query()
-	var userID *uint
+	var userID uint
 
-	if userIDStr := queryParams.Get("user_id"); userIDStr != "" {
-		id, err := strconv.ParseUint(userIDStr, 10, 32)
+	if userIDStr := r.PathValue("id"); userIDStr != "" {
+		id, err := strconv.Atoi(userIDStr)
 		if err != nil {
 			http.Error(w, "Invalid user_id", http.StatusBadRequest)
 			return err
 		}
-		uid := uint(id)
-		userID = &uid
+
+		userID = uint(id)
 
 		// Log the userID value
-		fmt.Printf("Extracted userID: %d\n", *userID)
+		fmt.Printf("Extracted userID: %d\n", userID)
 	}
 
 	loginData, err := srv.Db.GetLoginEngagementActivity(userID)
@@ -74,8 +73,6 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 		LoginEngagement:    loginData,
 		ActivityEngagement: activityEngagement,
 	}
-
-
 
 	return writeJsonResponse(w, http.StatusOK, response)
 }
