@@ -344,15 +344,13 @@ func (db *DB) GetLoginEngagementActivity(userID uint) (*models.LoginEngagementAc
 	FROM user_session_tracking
 	WHERE session_start_ts >= CURRENT_DATE - INTERVAL '30 days' AND user_id = ?
 	`
-	
+
 	query += `
 	GROUP BY user_id, DATE(session_start_ts)
 	ORDER BY user_id, time_interval;
 	`
 
-		
-
-	if err:= db.Raw(query, userID).Scan(&loginActivityEntries).Error; err != nil {
+	if err := db.Raw(query, userID).Scan(&loginActivityEntries).Error; err != nil {
 		return nil, newGetRecordsDBError(err, "login_activity")
 	}
 
@@ -385,6 +383,6 @@ func (db *DB) GetEngagementActivityMetrics(userID uint) (*models.EngagementActiv
 	if err := query.Find(&engagementActivityMetrics).Error; err != nil {
 		return nil, NewDBError(err, "error getting engagement insights")
 	}
-	
+
 	return &engagementActivityMetrics, nil
 }
