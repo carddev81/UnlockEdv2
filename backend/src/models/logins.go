@@ -46,10 +46,10 @@ type LoginEngagementActivity struct {
 }
 
 type EngagementActivityMetrics struct {
-	UserID                     uint      `json:"user_id"`
+	UserID                  int64      `json:"user_id"`
 	TotalHoursActiveMonthly float64   `json:"total_hours_active_monthly"`
-	TotalHoursActiveWeekly   float64   `json:"total_hours_active_weekly"`
-	TotalHoursEngaged          float64   `json:"total_hours_engaged"`
-	FirstActiveDate            time.Time `json:"first_active_date"`
-	LastActiveDate             time.Time `json:"last_active_date"`
+	TotalHoursActiveWeekly  float64   `json:"total_hours_active_weekly"`
+	TotalHoursEngaged       float64   `json:"total_hours_engaged"`
+	FirstActiveDate         time.Time `json:"first_active_date"`
+	LastActiveDate          time.Time `json:"last_active_date"`
 }

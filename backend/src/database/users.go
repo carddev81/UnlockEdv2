@@ -333,7 +333,7 @@ func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivi
 	return acitvity, nil
 }
 
-func (db *DB) GetLoginEngagementActivity(userID *uint) (*models.LoginEngagementActivity, error) {
+func (db *DB) GetLoginEngagementActivity(userID uint) (*models.LoginEngagementActivity, error) {
 	var loginActivityEntries []models.LoginActivityEntry
 
 	query := `
@@ -342,22 +342,17 @@ func (db *DB) GetLoginEngagementActivity(userID *uint) (*models.LoginEngagementA
 		TO_CHAR(DATE(session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval, 
 		COUNT(*) AS total_logins
 	FROM user_session_tracking
-	WHERE session_start_ts >= CURRENT_DATE - INTERVAL '30 days'
+	WHERE session_start_ts >= CURRENT_DATE - INTERVAL '30 days' AND user_id = ?
 	`
-	if userID != nil {
-		query += " AND user_id = ?"
-	}
+	
 	query += `
 	GROUP BY user_id, DATE(session_start_ts)
 	ORDER BY user_id, time_interval;
 	`
-	var err error
-	if userID != nil {
-		err = db.Debug().Raw(query, *userID).Scan(&loginActivityEntries).Error
-	} else {
-		err = db.Raw(query).Scan(&loginActivityEntries).Error
-	}
-	if err != nil {
+
+		
+
+	if err:= db.Raw(query, userID).Scan(&loginActivityEntries).Error; err != nil {
 		return nil, newGetRecordsDBError(err, "login_activity")
 	}
 
@@ -367,41 +362,29 @@ func (db *DB) GetLoginEngagementActivity(userID *uint) (*models.LoginEngagementA
 
 	return result, nil
 }
-func (db *DB) GetEngagementActivityMetrics(userID *uint) (*models.EngagementActivityMetrics, error) {
+func (db *DB) GetEngagementActivityMetrics(userID uint) (*models.EngagementActivityMetrics, error) {
 	var engagementActivityMetrics models.EngagementActivityMetrics
+	query := db.Table("open_content_activities ").
+		Select(`
+        user_id,
+        AVG(EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600) AS total_hours_active_monthly,
+        SUM(
+            CASE
+                WHEN request_ts >= date_trunc('week', CURRENT_DATE)
+                THEN EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600
+                ELSE 0
+            END
+        ) AS total_hours_active_weekly,
+        SUM(EXTRACT(EPOCH FROM duration) / 3600) AS total_hours_engaged,
+        MIN(request_ts) AS first_active_date,
+        MAX(request_ts) AS last_active_date
+    `).
+		Where(`request_ts >= CURRENT_DATE - INTERVAL '30 days' AND user_id = ? 
+    `, userID).Group("user_id")
 
-	query := `SELECT 
-	    user_id,
-	    AVG(EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600) AS total_hours_active_monthly,
-	    SUM(
-	        CASE 
-	            WHEN request_ts >= date_trunc('week', CURRENT_DATE) 
-	            THEN EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600
-	            ELSE 0 
-	        END
-	    ) AS total_hours_active_weekly,
-	    SUM(EXTRACT(EPOCH FROM duration) / 3600) AS total_hours_engaged,  
-	    MIN(request_ts) AS first_active_date,
-	    MAX(request_ts) AS last_active_date
-	FROM 
-	    open_content_activities
-	WHERE 
-	    request_ts >= CURRENT_DATE - INTERVAL '30 days'`
-
-	var args []interface{}
-
-	if userID != nil {
-		query += " AND user_id = ?"
-		args = append(args, *userID)
+	if err := query.Find(&engagementActivityMetrics).Error; err != nil {
+		return nil, NewDBError(err, "error getting engagement insights")
 	}
-
-	query += " GROUP BY user_id"
-
-	result := db.Raw(query, args...).Scan(&engagementActivityMetrics)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
+	
 	return &engagementActivityMetrics, nil
 }

@@ -1,71 +1,34 @@
-// import { useState } from 'react';
 import useSWR from 'swr';
 import { AxiosError } from 'axios';
 import { ResidentEngagementProfile, ServerResponseOne } from '@/common';
-// import { ResponsiveContainer } from 'recharts';
-// import StatsCard from './StatsCard';
 import NewEngagementRateGraph from '@/Components/EngagementRateGraph';
 import { ResponsiveContainer } from 'recharts';
-// import { useAuth } from '@/useAuth';
 import StatsCard from '@/Components/StatsCard';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { useParams } from 'react-router-dom';
-// TODO: figure out how to pass the studentId to this page
+
 const StudentProfile = () => {
-    // const { user } = useAuth();
-    // const [resetCache, setResetCache] = useState(false);
     const { user_id } = useParams<{ user_id: string }>();
     console.log('This is the user_id before the conversion: ' + user_id);
-    const uid = Number(user_id);
-    console.log('This is the user_id before the response: ' + uid);
+    // const uid = Number(user_id);
+    console.log('This is the user_id before the response: ' + user_id);
     const { data, error, isLoading } = useSWR<
         ServerResponseOne<ResidentEngagementProfile>,
         AxiosError
-    >(`/api/users/${uid}/profile`);
+    >(`/api/users/${user_id}/profile`);
     const metrics = data?.data;
-    // TODO: figure out why the uid is not updating!!!!
+    // TODO: WTF!!!!
     console.log(
         'This is the user_id in the response: ' +
             metrics?.activity_engagement.user_id
     );
-    // const { data: facilitiesData } =
-    //     useSWR<ServerResponseOne<Facility[]>>('/api/facilities');
 
-    // useEffect(() => {
-    //     void mutate();
-    // }, [facility, days, resetCache]);
-
-    // const facilities = facilitiesData?.data;
-
-    // const formattedDate =
-    //     metrics && new Date(metrics.last_cache).toLocaleString('en-US', {});
-
-    // const totalUsers =
-    //     (metrics?.data.total_residents ?? 0) +
-    //     (metrics?.data.total_admins ?? 0);
     return (
         <div className="overflow-x-hidden">
             {error && <div>Error loading data</div>}
             {!data || (isLoading && <div>Loading...</div>)}
             {data && metrics && (
                 <>
-                    {/* <div className="flex items-end justify-between pb-4">
-                         <div className="flex flex-row gap-4">
-                             
-                         </div>
-                         <div>
-                             <p className="label label-text text-grey-3">
-                                 Last updated:
-                             </p>
-                             <button
-                                 className="button justify-self-end"
-                                 // onClick={() => setResetCache(!resetCache)}
-                             >
-                                 Refresh Data
-                             </button>
-                         </div>
-                     </div> */}
-
                     <div className="flex flex-row gap-6">
                         <div className="w-1/5 flex flex-col gap-4">
                             <div className="card card-row-padding overflow-hidden text-2xl items-center">
