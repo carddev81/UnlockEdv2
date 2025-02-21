@@ -733,9 +733,9 @@ export interface Option {
 }
 
 export enum WebSocketEventType {
-    SessionEvent   = "sessions",
-    VisitEvent     = "visits",
-    BookmarkEvent  = "bookmarks"
+    SessionEvent = 'sessions',
+    VisitEvent = 'visits',
+    BookmarkEvent = 'bookmarks'
 }
 
 export interface WebSocketMessage {
@@ -758,7 +758,6 @@ export interface EngagementRateGraphProps {
 
 export interface EngagementActivityMetrics {
     user_id: number;
-
     total_hours_active_monthly: number;
     total_hours_active_weekly: number;
     total_hours_engaged: number;

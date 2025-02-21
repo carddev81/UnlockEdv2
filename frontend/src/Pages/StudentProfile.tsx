@@ -15,13 +15,19 @@ const StudentProfile = () => {
     // const { user } = useAuth();
     // const [resetCache, setResetCache] = useState(false);
     const { user_id } = useParams<{ user_id: string }>();
+    console.log('This is the user_id before the conversion: ' + user_id);
     const uid = Number(user_id);
+    console.log('This is the user_id before the response: ' + uid);
     const { data, error, isLoading } = useSWR<
         ServerResponseOne<ResidentEngagementProfile>,
         AxiosError
     >(`/api/users/${uid}/profile`);
     const metrics = data?.data;
-
+    // TODO: figure out why the uid is not updating!!!!
+    console.log(
+        'This is the user_id in the response: ' +
+            metrics?.activity_engagement.user_id
+    );
     // const { data: facilitiesData } =
     //     useSWR<ServerResponseOne<Facility[]>>('/api/facilities');
 
@@ -96,13 +102,17 @@ const StudentProfile = () => {
                     <div className="grid grid-cols-3 gap-4 mb-6 mt-6">
                         <StatsCard
                             title="Days Active"
-                            number={metrics.activity_engagement.total_hours_active_monthly.toString()}
+                            number={metrics.activity_engagement.total_hours_active_monthly.toFixed(
+                                2
+                            )}
                             label="Days Active This Month"
                             tooltip="Total number of days resident has been active in UnlockedEd"
                         />
                         <StatsCard
                             title="Average Hours"
-                            number={metrics.activity_engagement.total_hours_active_weekly.toString()}
+                            number={metrics.activity_engagement.total_hours_active_weekly.toFixed(
+                                2
+                            )}
                             label={'AVG Hours PER Week'}
                             tooltip={
                                 'Average number of hours resident is logged in to UnlockedEd'
@@ -110,7 +120,9 @@ const StudentProfile = () => {
                         />
                         <StatsCard
                             title="Total Hours"
-                            number={metrics.activity_engagement.total_hours_engaged.toString()}
+                            number={metrics.activity_engagement.total_hours_engaged.toFixed(
+                                2
+                            )}
                             label={'Total Hours This Week'}
                             tooltip={
                                 'Total number of hours resident was logged in to UnlockedEd this week'

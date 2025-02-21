@@ -350,7 +350,7 @@ const router = createBrowserRouter([
                         }
                     },
                     {
-                        path: 'residents/:id',
+                        path: 'residents/:user_id',
                         element: <StudentProfile />,
                         handle: {
                             title: 'Resident Profile',

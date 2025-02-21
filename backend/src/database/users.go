@@ -339,21 +339,21 @@ func (db *DB) GetLoginEngagementActivity(userID *uint) (*models.LoginEngagementA
 	query := `
 	SELECT
 		user_id, 
-		TO_CHAR(DATE(login_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval, 
+		TO_CHAR(DATE(session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval, 
 		COUNT(*) AS total_logins
 	FROM user_session_tracking
-	WHERE login_ts >= CURRENT_DATE - INTERVAL '30 days'
+	WHERE session_start_ts >= CURRENT_DATE - INTERVAL '30 days'
 	`
 	if userID != nil {
 		query += " AND user_id = ?"
 	}
 	query += `
-	GROUP BY user_id, DATE(login_ts)
+	GROUP BY user_id, DATE(session_start_ts)
 	ORDER BY user_id, time_interval;
 	`
 	var err error
 	if userID != nil {
-		err = db.Raw(query, *userID).Scan(&loginActivityEntries).Error
+		err = db.Debug().Raw(query, *userID).Scan(&loginActivityEntries).Error
 	} else {
 		err = db.Raw(query).Scan(&loginActivityEntries).Error
 	}
@@ -372,7 +372,7 @@ func (db *DB) GetEngagementActivityMetrics(userID *uint) (*models.EngagementActi
 
 	query := `SELECT 
 	    user_id,
-	    AVG(EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600) AS avg_hours_active_monthly,
+	    AVG(EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600) AS total_hours_active_monthly,
 	    SUM(
 	        CASE 
 	            WHEN request_ts >= date_trunc('week', CURRENT_DATE) 
