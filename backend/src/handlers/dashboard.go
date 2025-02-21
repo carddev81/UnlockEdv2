@@ -75,6 +75,8 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 		ActivityEngagement: activityEngagement,
 	}
 
+
+
 	return writeJsonResponse(w, http.StatusOK, response)
 }
 

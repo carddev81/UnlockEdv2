@@ -795,7 +795,6 @@ export interface EngagementRateGraphProps {
 
 export interface EngagementActivityMetrics {
     user_id: number;
-
     total_hours_active_monthly: number;
     total_hours_active_weekly: number;
     total_hours_engaged: number;
