@@ -366,10 +366,10 @@ type OpenContentResponse struct {
 	TotalMinutes float64 `json:"total_minutes"`
 }
 
-func (db *DB) GetTopFiveLibrariesByUserID(userID *uint) ([]OpenContentResponse, error) {
+func (db *DB) GetTopFiveLibrariesByUserID(userID int) ([]OpenContentResponse, error) {
 	libraries := make([]OpenContentResponse, 0, 5)
 	query := db.Table("libraries lib ").
-		Select(`lib.title,
+		Select(`lib.id as content_id,lib.title,
 			lib.url,
 			lib.thumbnail_url,
 			lib.visibility_status,
@@ -377,6 +377,8 @@ func (db *DB) GetTopFiveLibrariesByUserID(userID *uint) ([]OpenContentResponse, 
 			CASE WHEN ocf.facility_id IS NOT NULL AND ocf.facility_id = u.facility_id THEN true
 				ELSE false
 			END as is_featured,
+			SUM(EXTRACT(EPOCH FROM oca.duration) / 3600) AS total_hours,
+			SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
 			SUM(EXTRACT(EPOCH FROM oca.duration) / 3600) AS total_hours,
 			SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
 		`).
@@ -390,7 +392,7 @@ func (db *DB) GetTopFiveLibrariesByUserID(userID *uint) ([]OpenContentResponse, 
 		Joins(`left outer join open_content_favorites ocf on ocf.open_content_provider_id = ocp.id
 			and ocf.content_id = lib.id`).
 		Where("oca.user_id = ?", userID).
-		Group("lib.title, lib.url, lib.thumbnail_url, lib.visibility_status, lib.open_content_provider_id, ocf.facility_id, u.facility_id").
+		Group("lib.title, lib.url, lib.thumbnail_url, lib.visibility_status, lib.open_content_provider_id, ocf.facility_id, u.facility_id, lib.id").
 		Order("7 desc")
 	if err := query.Find(&libraries).Error; err != nil {
 		return nil, NewDBError(err, "error getting top 5 libraries")
@@ -398,7 +400,7 @@ func (db *DB) GetTopFiveLibrariesByUserID(userID *uint) ([]OpenContentResponse, 
 	return libraries, nil
 }
 
-func (db *DB) GetMostRecentFiveVideosByUserID(userID *uint) ([]OpenContentResponse, error) {
+func (db *DB) GetMostRecentFiveVideosByUserID(userID int) ([]OpenContentResponse, error) {
 	videos := make([]OpenContentResponse, 0, 5)
 	query := `with RecentVideos as (
 		select oca.content_id
@@ -440,6 +442,7 @@ func (db *DB) GetMostRecentFiveVideosByUserID(userID *uint) ([]OpenContentRespon
 	join VideoWatchTime vwt on vwt.content_id = vid.id
 	order by vwt.total_minutes desc
 	limit 5`
+	
 	if err := db.Raw(query, userID, userID).Scan(&videos).Error; err != nil {
 		return nil, err
 	}

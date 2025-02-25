@@ -321,7 +321,7 @@ func (db *DB) GetTotalUsers(facilityId *uint) (int64, int64, error) {
 func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivity, error) {
 	acitvity := make([]models.LoginActivity, 0, 3)
 	daysAgo := time.Now().AddDate(0, 0, -days)
-	if err := db.Raw(`SELECT time_interval, total_logins
+	if err := db.Raw(`SELECT time_interval, total_hours
 						FROM login_activity
 						WHERE time_interval >= ?
 						ORDER BY total_logins DESC
@@ -332,34 +332,34 @@ func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivi
 	return acitvity, nil
 }
 
-func (db *DB) GetLoginEngagementActivity(userID uint) (*models.LoginEngagementActivity, error) {
-	var loginActivityEntries []models.LoginActivityEntry
+func (db *DB) GetLoginEngagementActivity(userID int) (*models.LoginEngagementActivity, error) {
+	var sessionEngagement []models.SessionEngagement
+	query := db.Table("user_session_tracking as ust").
+		Joins("JOIN users u ON ust.user_id = u.id").
+		Select(`ust.user_id,
+		u.name_first,
+		u.name_last,
+		u.username,
+		TO_CHAR(DATE(ust.session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval,
+		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 3600) AS total_hours,
+		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 60) AS total_minutes`).
+		Where("ust.user_id = ?", userID).
+		Group("ust.user_id, u.name_first, u.name_last, time_interval, u.username").
+		Order("ust.user_id, time_interval")
 
-	query := `
-	SELECT
-		user_id, 
-		TO_CHAR(DATE(session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval, 
-		COUNT(*) AS total_logins
-	FROM user_session_tracking
-	WHERE session_start_ts >= CURRENT_DATE - INTERVAL '30 days' AND user_id = ?
-	`
-
-	query += `
-	GROUP BY user_id, DATE(session_start_ts)
-	ORDER BY user_id, time_interval;
-	`
-
-	if err := db.Raw(query, userID).Scan(&loginActivityEntries).Error; err != nil {
-		return nil, newGetRecordsDBError(err, "login_activity")
+	if err := query.Find(&sessionEngagement).Error; err != nil {
+		return nil, newGetRecordsDBError(err, "session_engagement")
 	}
 
 	result := &models.LoginEngagementActivity{
-		PeakLoginTimes: loginActivityEntries,
+		PeakLoginTimes: sessionEngagement,
 	}
-
 	return result, nil
 }
-func (db *DB) GetEngagementActivityMetrics(userID uint) (*models.EngagementActivityMetrics, error) {
+
+
+
+func (db *DB) GetEngagementActivityMetrics(userID int) (*models.EngagementActivityMetrics, error) {
 	var engagementActivityMetrics models.EngagementActivityMetrics
 	query := db.Table("open_content_activities ").
 		Select(`
@@ -380,8 +380,7 @@ func (db *DB) GetEngagementActivityMetrics(userID uint) (*models.EngagementActiv
     `, userID).Group("user_id")
 
 	if err := query.Find(&engagementActivityMetrics).Error; err != nil {
-		return nil, NewDBError(err, "error getting engagement insights")
+		return nil, NewDBError(err, "error getting engagement_activity")
 	}
-
 	return &engagementActivityMetrics, nil
 }

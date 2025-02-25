@@ -136,7 +136,6 @@ export default function StudentManagement() {
         void mutate();
     };
 
-    // TODO: write out logic here
     const navigate = useNavigate();
 
     const handleShowUserProfileClick = (id: number) => {
