@@ -82,7 +82,7 @@ export default function LibraryViewer() {
             if (!modalRef.current.open) {
                 openModal();
             }
-            //needed a way to call 
+            //needed a way to call
             modalRef.current.dispatchEvent(
                 new CustomEvent('executeHandleSearch', {
                     detail: {

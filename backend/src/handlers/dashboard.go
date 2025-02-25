@@ -25,19 +25,9 @@ func (srv *Server) registerDashboardRoutes() []routeDef {
 }
 
 func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request, log sLog) error {
-	var userID uint
-
-	if userIDStr := r.PathValue("id"); userIDStr != "" {
-		id, err := strconv.Atoi(userIDStr)
-		if err != nil {
-			http.Error(w, "Invalid user_id", http.StatusBadRequest)
-			return err
-		}
-
-		userID = uint(id)
-
-		// Log the userID value
-		fmt.Printf("Extracted userID: %d\n", userID)
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		return newInvalidIdServiceError(err, "user ID")
 	}
 
 	loginData, err := srv.Db.GetLoginEngagementActivity(userID)
@@ -52,14 +42,28 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 		return err
 	}
 
-	//libs, err := srv.Db.GetTopFiveLibrariesByUserID(userID)
-	//fmt.Println(len(libs), libs)
+	topLibraries, err := srv.Db.GetTopFiveLibrariesByUserID(userID)
+	if err != nil {
+		http.Error(w, "Failed to fetch library engagement data", http.StatusInternalServerError)
+		return err
+	}
+
+	recentVideos, err := srv.Db.GetMostRecentFiveVideosByUserID(userID)
+	if err != nil {
+		http.Error(w, "Failed to fetch recent video data", http.StatusInternalServerError)
+		return err
+	}
 	response := struct {
+
 		LoginEngagement    interface{} `json:"login_engagement"`
 		ActivityEngagement interface{} `json:"activity_engagement"`
+		TopLibraries interface{} `json:"top_libraries"`
+		RecentVideos interface{}`json:"recent_videos"`
 	}{
 		LoginEngagement:    loginData,
 		ActivityEngagement: activityEngagement,
+		TopLibraries: topLibraries,
+		RecentVideos: recentVideos,
 	}
 
 	return writeJsonResponse(w, http.StatusOK, response)

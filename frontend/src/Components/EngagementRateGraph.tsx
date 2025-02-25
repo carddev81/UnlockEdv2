@@ -11,7 +11,11 @@ import {
 import { ThemeContext } from '@/Context/ThemeContext';
 
 interface EngagementRateGraphProps {
-    peak_login_times: { time_interval: string; total_logins: number }[];
+    peak_login_times: {
+        time_interval: string;
+        total_logins?: number;
+        total_hours?: number;
+    }[];
     viewType: 'hourly' | 'daily';
 }
 
@@ -48,14 +52,20 @@ const EngagementRateGraph = ({
                 ])
             );
 
-            peak_login_times.forEach(({ time_interval, total_logins }) => {
-                const date = new Date(time_interval);
-                const dayOfMonth = date.getDate();
-                dataMap.set(dayOfMonth, {
-                    time: `Day ${dayOfMonth}`,
-                    logins: total_logins
-                });
-            });
+            peak_login_times.forEach(
+                ({ time_interval, total_logins, total_hours }) => {
+                    const date = new Date(time_interval);
+                    const dayOfMonth = date.getDate();
+                    dataMap.set(dayOfMonth, {
+                        time: `Day ${dayOfMonth}`,
+                        logins: total_logins
+                            ? total_logins
+                            : total_hours
+                              ? total_hours
+                              : 0
+                    });
+                }
+            );
 
             return Array.from(dataMap.values());
         } else {
@@ -73,18 +83,24 @@ const EngagementRateGraph = ({
                 ])
             );
 
-            peak_login_times.forEach(({ time_interval, total_logins }) => {
-                const date = new Date(time_interval);
-                const localHour = date.getHours();
-                dataMap.set(localHour, {
-                    time: date.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                    }),
-                    logins: total_logins
-                });
-            });
+            peak_login_times.forEach(
+                ({ time_interval, total_logins, total_hours }) => {
+                    const date = new Date(time_interval);
+                    const localHour = date.getHours();
+                    dataMap.set(localHour, {
+                        time: date.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        }),
+                        logins: total_logins
+                            ? total_logins
+                            : total_hours
+                              ? total_hours
+                              : 0
+                    });
+                }
+            );
 
             return Array.from(dataMap.values());
         }

@@ -747,8 +747,12 @@ export interface WebSocketMessage {
 }
 
 export interface PeakLoginTime {
+    user_id: string;
+    name_first: string;
+    name_last: string;
+    username: string;
     time_interval: string;
-    total_logins: number;
+    total_hours: number;
 }
 
 export interface EngagementRateGraphProps {
@@ -759,14 +763,20 @@ export interface EngagementRateGraphProps {
 export interface EngagementActivityMetrics {
     user_id: number;
     total_hours_active_monthly: number;
-    total_hours_active_weekly: number;
+    total_hours_active_weekly: string;
     total_hours_engaged: number;
     first_active_date: string;
     last_active_date: string;
 }
+export interface OpenContentResponse extends OpenContentItem {
+    is_featured: boolean;
+    total_hours: number;
+    total_minutes: number;
+}
 
-// Unified interface that combines login and activity engagement
 export interface ResidentEngagementProfile {
     login_engagement: EngagementRateGraphProps;
     activity_engagement: EngagementActivityMetrics;
+    top_libraries: OpenContentResponse[];
+    recent_videos: OpenContentResponse[];
 }

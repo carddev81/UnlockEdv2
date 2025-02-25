@@ -85,8 +85,7 @@ export default function VideoCard({
                     onClick={(e) => {
                         e.stopPropagation();
                         void handleToggleAction('favorite');
-                    }
-                }
+                    }}
                 >
                     {bookmark}
                 </div>
