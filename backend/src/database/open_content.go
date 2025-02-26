@@ -42,6 +42,8 @@ func (db *DB) CreateContentActivity(urlString string, activity *models.OpenConte
 	activity.OpenContentUrlID = url.ID
 	if err := db.Create(&activity).Error; err != nil {
 		log.Warn("unable to create content activity for url, ", urlString)
+	}
+}
 
 func (db *DB) UpdateOpenContentActivityStopTS(activityID int64) {
 	if err := db.Debug().Model(&models.OpenContentActivity{}).Where("id = ?", activityID).Update("stop_ts", time.Now()).Error; err != nil {
