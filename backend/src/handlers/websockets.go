@@ -4,7 +4,6 @@ import (
 	"UnlockEdv2/src/database"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
