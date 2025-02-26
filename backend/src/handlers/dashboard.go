@@ -53,17 +53,17 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "Failed to fetch recent video data", http.StatusInternalServerError)
 		return err
 	}
-	response := struct {
 
-		LoginEngagement    interface{} `json:"login_engagement"`
+	response := struct {
+		LoginEngagement    interface{} `json:"session_engagement"`
 		ActivityEngagement interface{} `json:"activity_engagement"`
-		TopLibraries interface{} `json:"top_libraries"`
-		RecentVideos interface{}`json:"recent_videos"`
+		TopLibraries       interface{} `json:"top_libraries"`
+		RecentVideos       interface{} `json:"recent_videos"`
 	}{
 		LoginEngagement:    loginData,
 		ActivityEngagement: activityEngagement,
-		TopLibraries: topLibraries,
-		RecentVideos: recentVideos,
+		TopLibraries:       topLibraries,
+		RecentVideos:       recentVideos,
 	}
 
 	return writeJsonResponse(w, http.StatusOK, response)

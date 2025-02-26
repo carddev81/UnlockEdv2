@@ -181,8 +181,8 @@ const OperationalInsights = () => {
                                     height="100%"
                                     debounce={500}
                                 >
-                                    <NewEngagementRateGraph
-                                        peak_login_times={
+                                    <EngagementRateGraph
+                                        data={
                                             metrics?.data.peak_login_times || []
                                         }
                                         viewType="hourly"

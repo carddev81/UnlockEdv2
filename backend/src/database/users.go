@@ -3,6 +3,7 @@ package database
 import (
 	"UnlockEdv2/src/models"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -321,7 +322,7 @@ func (db *DB) GetTotalUsers(facilityId *uint) (int64, int64, error) {
 func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivity, error) {
 	acitvity := make([]models.LoginActivity, 0, 3)
 	daysAgo := time.Now().AddDate(0, 0, -days)
-	if err := db.Raw(`SELECT time_interval, total_hours
+	if err := db.Raw(`SELECT time_interval, total_logins
 						FROM login_activity
 						WHERE time_interval >= ?
 						ORDER BY total_logins DESC
@@ -332,10 +333,22 @@ func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivi
 	return acitvity, nil
 }
 
-func (db *DB) GetLoginEngagementActivity(userID int) (*models.LoginEngagementActivity, error) {
+type UserInfo struct {
+	UserID    int64  `json:"user_id"`
+	NameFirst string `json:"name_first"`
+	NameLast  string `json:"name_last"`
+	Username  string `json:"username"`
+}
+
+type LoginEngagementActivityWithUserInfo struct {
+	UserInfo            UserInfo                   `json:"user_info"`
+	UserEngagementTimes []models.SessionEngagement `json:"user_engagement_times"`
+}
+
+func (db *DB) GetLoginEngagementActivity(userID int) (*LoginEngagementActivityWithUserInfo, error) {
 	var sessionEngagement []models.SessionEngagement
+
 	query := db.Table("user_session_tracking as ust").
-		Joins("JOIN users u ON ust.user_id = u.id").
 		Select(`ust.user_id,
 		u.name_first,
 		u.name_last,
@@ -344,6 +357,7 @@ func (db *DB) GetLoginEngagementActivity(userID int) (*models.LoginEngagementAct
 		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 3600) AS total_hours,
 		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 60) AS total_minutes`).
 		Where("ust.user_id = ?", userID).
+		Joins("JOIN users u ON ust.user_id = u.id").
 		Group("ust.user_id, u.name_first, u.name_last, time_interval, u.username").
 		Order("ust.user_id, time_interval")
 
@@ -351,13 +365,25 @@ func (db *DB) GetLoginEngagementActivity(userID int) (*models.LoginEngagementAct
 		return nil, newGetRecordsDBError(err, "session_engagement")
 	}
 
-	result := &models.LoginEngagementActivity{
-		PeakLoginTimes: sessionEngagement,
+	var usrInfo UserInfo
+	if len(sessionEngagement) > 0 {
+		usrInfo = UserInfo{
+			UserID:    sessionEngagement[0].UserId,
+			NameFirst: sessionEngagement[0].NameFirst,
+			NameLast:  sessionEngagement[0].NameLast,
+			Username:  sessionEngagement[0].Username,
+		}
+	} else {
+		// TODO: I know that this should be logged better but I am not sure exactly how.
+		fmt.Println("No session data found for user.")
+	}
+
+	result := &LoginEngagementActivityWithUserInfo{
+		UserInfo:            usrInfo,
+		UserEngagementTimes: sessionEngagement,
 	}
 	return result, nil
 }
-
-
 
 func (db *DB) GetEngagementActivityMetrics(userID int) (*models.EngagementActivityMetrics, error) {
 	var engagementActivityMetrics models.EngagementActivityMetrics
@@ -372,6 +398,14 @@ func (db *DB) GetEngagementActivityMetrics(userID int) (*models.EngagementActivi
                 ELSE 0
             END
         ) AS total_hours_active_weekly,
+		  SUM(
+        CASE 
+            WHEN request_ts >= date_trunc('week', CURRENT_DATE) 
+            AND EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 3600 < 1 
+            THEN EXTRACT(EPOCH FROM (stop_ts - request_ts)) / 60 
+            ELSE 0 
+        END
+    ) AS total_minutes_active_weekly,
         SUM(EXTRACT(EPOCH FROM duration) / 3600) AS total_hours_engaged,
         MIN(request_ts) AS first_active_date,
         MAX(request_ts) AS last_active_date

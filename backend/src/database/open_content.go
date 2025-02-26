@@ -46,7 +46,7 @@ func (db *DB) CreateContentActivity(urlString string, activity *models.OpenConte
 }
 
 func (db *DB) UpdateOpenContentActivityStopTS(activityID int64) {
-	if err := db.Debug().Model(&models.OpenContentActivity{}).Where("id = ?", activityID).Update("stop_ts", time.Now()).Error; err != nil {
+	if err := db.Model(&models.OpenContentActivity{}).Where("id = ?", activityID).Update("stop_ts", time.Now()).Error; err != nil {
 		log.Errorf("error updating open content activity: %v", err)
 	}
 }
@@ -393,7 +393,7 @@ func (db *DB) GetTopFiveLibrariesByUserID(userID int) ([]OpenContentResponse, er
 			and ocf.content_id = lib.id`).
 		Where("oca.user_id = ?", userID).
 		Group("lib.title, lib.url, lib.thumbnail_url, lib.visibility_status, lib.open_content_provider_id, ocf.facility_id, u.facility_id, lib.id").
-		Order("7 desc")
+		Order("8 desc")
 	if err := query.Find(&libraries).Error; err != nil {
 		return nil, NewDBError(err, "error getting top 5 libraries")
 	}
@@ -442,7 +442,7 @@ func (db *DB) GetMostRecentFiveVideosByUserID(userID int) ([]OpenContentResponse
 	join VideoWatchTime vwt on vwt.content_id = vid.id
 	order by vwt.total_minutes desc
 	limit 5`
-	
+
 	if err := db.Raw(query, userID, userID).Scan(&videos).Error; err != nil {
 		return nil, err
 	}

@@ -340,7 +340,7 @@ export interface LoginMetrics {
         facility: string;
         new_residents_added: number;
         new_admins_added: number;
-        peak_login_times: LoginActivity[];
+        peak_login_times: PeakLoginTime[];
     };
     last_cache: string;
 }
@@ -784,23 +784,28 @@ interface Failure {
 }
 
 export interface PeakLoginTime {
-    user_id: string;
+    time_interval: string;
+    total_hours: number;
+    facility_id: number;
+}
+
+export interface UserInfo {
+    user_id: number;
     name_first: string;
     name_last: string;
     username: string;
-    time_interval: string;
-    total_hours: number;
 }
 
-export interface EngagementRateGraphProps {
-    peak_login_times: PeakLoginTime[];
-    viewType: 'hourly' | 'daily';
+export interface SessionEngagementActivityWithUserInfo {
+    user_info: UserInfo;
+    user_engagement_times: PeakLoginTime[];
 }
 
 export interface EngagementActivityMetrics {
     user_id: number;
     total_hours_active_monthly: number;
-    total_hours_active_weekly: string;
+    total_hours_active_weekly: number;
+    total_minutes_active_weekly: number;
     total_hours_engaged: number;
     first_active_date: string;
     last_active_date: string;
@@ -812,7 +817,7 @@ export interface OpenContentResponse extends OpenContentItem {
 }
 
 export interface ResidentEngagementProfile {
-    login_engagement: EngagementRateGraphProps;
+    session_engagement: SessionEngagementActivityWithUserInfo;
     activity_engagement: EngagementActivityMetrics;
     top_libraries: OpenContentResponse[];
     recent_videos: OpenContentResponse[];
