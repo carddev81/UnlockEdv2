@@ -9,20 +9,14 @@ import {
     ResponsiveContainer
 } from 'recharts';
 import { ThemeContext } from '@/Context/ThemeContext';
+import { PeakLoginTime } from '@/common';
 
 interface EngagementRateGraphProps {
-    peak_login_times: {
-        time_interval: string;
-        total_logins?: number;
-        total_hours?: number;
-    }[];
     viewType: 'hourly' | 'daily';
+    data: PeakLoginTime[];
 }
 
-const EngagementRateGraph = ({
-    peak_login_times,
-    viewType
-}: EngagementRateGraphProps) => {
+const EngagementRateGraph = ({ data, viewType }: EngagementRateGraphProps) => {
     const { theme } = useContext(ThemeContext);
 
     const strokeColor = theme === 'light' ? '#666' : '#CCC';
@@ -52,20 +46,14 @@ const EngagementRateGraph = ({
                 ])
             );
 
-            peak_login_times.forEach(
-                ({ time_interval, total_logins, total_hours }) => {
-                    const date = new Date(time_interval);
-                    const dayOfMonth = date.getDate();
-                    dataMap.set(dayOfMonth, {
-                        time: `Day ${dayOfMonth}`,
-                        logins: total_logins
-                            ? total_logins
-                            : total_hours
-                              ? total_hours
-                              : 0
-                    });
-                }
-            );
+            data.forEach(({ time_interval, total_hours }) => {
+                const date = new Date(time_interval);
+                const dayOfMonth = date.getDate();
+                dataMap.set(dayOfMonth, {
+                    time: `Day ${dayOfMonth}`,
+                    logins: total_hours ?? 0
+                });
+            });
 
             return Array.from(dataMap.values());
         } else {
@@ -83,28 +71,22 @@ const EngagementRateGraph = ({
                 ])
             );
 
-            peak_login_times.forEach(
-                ({ time_interval, total_logins, total_hours }) => {
-                    const date = new Date(time_interval);
-                    const localHour = date.getHours();
-                    dataMap.set(localHour, {
-                        time: date.toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true
-                        }),
-                        logins: total_logins
-                            ? total_logins
-                            : total_hours
-                              ? total_hours
-                              : 0
-                    });
-                }
-            );
+            data.forEach(({ time_interval, total_hours }) => {
+                const date = new Date(time_interval);
+                const localHour = date.getHours();
+                dataMap.set(localHour, {
+                    time: date.toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    }),
+                    logins: total_hours ?? 0
+                });
+            });
 
             return Array.from(dataMap.values());
         }
-    }, [peak_login_times, viewType]);
+    }, [data, viewType]);
 
     return (
         <ResponsiveContainer width="100%" height="100%" className="pt-2">

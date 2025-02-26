@@ -193,13 +193,15 @@ export default function StudentManagement() {
                                         <tr
                                             key={user.id}
                                             className="card p-4 w-full grid-cols-4 justify-items-center cursor-pointer"
-                                            onClick={() =>
-                                                handleShowUserProfileClick(
-                                                    user.id
-                                                )
-                                            }
                                         >
-                                            <td className="justify-self-start">
+                                            <td
+                                                className="justify-self-start"
+                                                onClick={() =>
+                                                    handleShowUserProfileClick(
+                                                        user.id
+                                                    )
+                                                }
+                                            >
                                                 {user.name_first}{' '}
                                                 {user.name_last}
                                             </td>

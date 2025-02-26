@@ -20,6 +20,25 @@ const StudentProfile = () => {
     >(`/api/users/${user_id}/profile`);
     const metrics = data?.data;
 
+    const isLessThanOneHour =
+        (metrics?.activity_engagement.total_hours_active_weekly ?? 0) < 1;
+
+    const statNumber = isLessThanOneHour
+        ? (
+              metrics?.activity_engagement.total_minutes_active_weekly ?? 0
+          ).toFixed(2)
+        : (metrics?.activity_engagement.total_hours_active_weekly ?? 0).toFixed(
+              2
+          );
+
+    const statLabel = isLessThanOneHour
+        ? 'AVG Minutes PER Week'
+        : 'AVG Hours PER Week';
+
+    const statTooltip = isLessThanOneHour
+        ? 'Average number of minutes resident is logged in to UnlockedEd'
+        : 'Average number of hours resident is logged in to UnlockedEd';
+
     return (
         <div className="overflow-x-hidden px-5 pb-4">
             {error && <div>Error loading data</div>}
@@ -28,29 +47,29 @@ const StudentProfile = () => {
                 <>
                     <div className="flex flex-row gap-6 items-stretch">
                         <div className="w-[270px] h-[240px] flex flex-col gap-4">
-                            <div className="card card-row-padding overflow-hidden text-med flex-1 h-full">
+                            <div className="card card-row-padding overflow-hidden text-med text-teal-4 flex-1 h-full">
                                 <div className="justify-items-center">
                                     <UserCircleIcon className="w-[64px] h-[64px]" />
                                 </div>
                                 <div className="">
-                                    {(() => {
-                                        const { name_first, name_last } =
-                                            metrics.login_engagement
-                                                .peak_login_times[0];
-                                        return (
-                                            <div className="text-sm mt-2">
-                                                {name_first} {name_last}{' '}
-                                            </div>
-                                        );
-                                    })()}
+                                    <div className="text-md mt-2">
+                                        {
+                                            metrics?.session_engagement
+                                                .user_info.name_first
+                                        }{' '}
+                                        {
+                                            metrics?.session_engagement
+                                                .user_info.name_last
+                                        }
+                                    </div>
                                     <div className="text-sm mt-2">
                                         <span className="font-semibold  justify-self-start">
                                             Username
                                         </span>
                                         {' : '}
                                         {
-                                            metrics.login_engagement
-                                                .peak_login_times[0].username
+                                            metrics?.session_engagement
+                                                .user_info.username
                                         }
                                     </div>
                                     <div className="text-sm mt-2">
@@ -61,16 +80,24 @@ const StudentProfile = () => {
                                             metrics.activity_engagement.first_active_date
                                         ).toLocaleDateString('en-US')}
                                     </div>
+                                    <div className="text-sm mt-2">
+                                        <span className="font-semibold">
+                                            Last Active :
+                                        </span>{' '}
+                                        {new Date(
+                                            metrics.activity_engagement.last_active_date
+                                        ).toLocaleDateString('en-US')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        {/* Chart */}
                         <div className="flex-1 h-[240px] flex flex-col gap-4">
                             <div className="card card-row-padding overflow-hidden">
                                 <h1 className="">
                                     {' '}
-                                    {metrics.login_engagement
-                                        .peak_login_times[0].name_first +
-                                        " 's recent Activity"}
+                                    {/* {metrics?.session_engagement.user_info.name_first +
+                                        " 's recent Activity"} */}
                                 </h1>
                                 <div className=" items-stretch">
                                     <div className="h-[240px] overflow-visible">
@@ -81,11 +108,12 @@ const StudentProfile = () => {
                                             debounce={500}
                                         >
                                             <EngagementRateGraph
-                                                peak_login_times={
-                                                    metrics?.login_engagement
-                                                        .peak_login_times ?? []
+                                                data={
+                                                    metrics?.session_engagement
+                                                        ?.user_engagement_times ??
+                                                    []
                                                 }
-                                                viewType={'daily'}
+                                                viewType="daily"
                                             />
                                         </ResponsiveContainer>
                                     </div>
@@ -93,7 +121,8 @@ const StudentProfile = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 mb-6 mt-6">
+                    {/* Cards */}
+                    <div className="w-[1/2] grid grid-cols-3 gap-4 mb-6 mt-6">
                         <StatsCard
                             title="Days Active"
                             number={metrics.activity_engagement.total_hours_active_monthly.toFixed(
@@ -101,22 +130,19 @@ const StudentProfile = () => {
                             )}
                             label="Days Active This Month"
                             tooltip="Total number of days resident has been active in UnlockedEd"
+                            useToLocaleString={false}
                         />
                         <StatsCard
-                            title="Average Hours"
-                            number={
-                                metrics.activity_engagement
-                                    .total_hours_active_weekly
-                            }
-                            label={'AVG Hours PER Week'}
-                            tooltip={
-                                'Average number of hours resident is logged in to UnlockedEd'
-                            }
+                            title="Average Activity Time"
+                            number={statNumber}
+                            label={statLabel}
+                            tooltip={statTooltip}
+                            useToLocaleString={false}
                         />
                         <StatsCard
                             title="Total Hours"
                             number={metrics.activity_engagement.total_hours_engaged.toFixed(
-                                2
+                                3
                             )}
                             label={'Total Hours This Week'}
                             tooltip={
@@ -124,11 +150,12 @@ const StudentProfile = () => {
                             }
                         />
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mb-6 mt-6">
-                        <div>
-                            <h2 className="text-center">
+                    {/* Tables */}
+                    <div className="grid grid-cols-2 gap-3 mb-6 mt-6">
+                        <div className="card pt-2 px-3">
+                            <div className="text-teal-4 text-center text-lg font-semibold">
                                 Top 5 Most Viewed Libraries
-                            </h2>
+                            </div>
                             <table className="table-2 mb-4">
                                 <thead>
                                     <tr className="grid-col-3">
@@ -145,7 +172,7 @@ const StudentProfile = () => {
                                     {metrics.top_libraries.map(
                                         (items: OpenContentResponse) => {
                                             return (
-                                                <tr>
+                                                <tr key={items.content_id}>
                                                     <td className="justify-self-start">
                                                         <img
                                                             className="h-8 mx-auto object-contain"
@@ -172,6 +199,7 @@ const StudentProfile = () => {
                                                             checked={
                                                                 items.is_featured
                                                             }
+                                                            readOnly
                                                         />
                                                     </td>
                                                 </tr>
@@ -181,16 +209,21 @@ const StudentProfile = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div></div>
-                        <div>
-                            <h2 className="text-center">
+                        {/* <div></div> */}
+                        <div className="card pt-2 px-3">
+                            <div className="text-teal-4 text-center text-lg font-semibold">
                                 Top 5 Recently Watched Videos
-                            </h2>
+                            </div>
                             <table className="table-2 mb-4">
                                 <thead>
-                                    <tr className="grid-col-2">
-                                        <th>Rank</th>
+                                    <tr className="grid-col-3">
+                                        <th className="justify-self-start">
+                                            Rank
+                                        </th>
                                         <th>Title</th>
+                                        <th className="justify-self-end">
+                                            Icon
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="flex flex-col gap-4 mt-4">
@@ -202,22 +235,21 @@ const StudentProfile = () => {
                                             ) => {
                                                 return (
                                                     <tr>
-                                                        <td>{index + 1}</td>
+                                                        <td className="justify-self-start">
+                                                            {index + 1}
+                                                        </td>
                                                         <td>
+                                                            {' '}
+                                                            {items.title ??
+                                                                'Untitled'}
+                                                        </td>
+                                                        <td className="justify-self-end">
                                                             <img
                                                                 className="h-8 mx-auto object-contain"
                                                                 src={
                                                                     '/src/assets/react.svg'
                                                                 }
                                                             />
-                                                            <ClampedText
-                                                                as="h3"
-                                                                lines={1}
-                                                                className="my-auto w-full body font-normal text-left"
-                                                            >
-                                                                {items.title ??
-                                                                    'Untitled'}
-                                                            </ClampedText>
                                                         </td>
                                                     </tr>
                                                 );
@@ -225,21 +257,17 @@ const StudentProfile = () => {
                                         )
                                     ) : (
                                         <tr>
-                                            <td>{1}</td>
-                                            <td>
+                                            <td className="justify-self-start">
+                                                1
+                                            </td>
+                                            <td>Untitled</td>
+                                            <td className="justify-self-end">
                                                 <img
                                                     className="h-8 mx-auto object-contain"
                                                     src={
                                                         '/src/assets/react.svg'
                                                     }
                                                 />
-                                                <ClampedText
-                                                    as="h3"
-                                                    lines={1}
-                                                    className="my-auto w-full body font-normal text-left"
-                                                >
-                                                    {'Untitled'}
-                                                </ClampedText>
                                             </td>
                                         </tr>
                                     )}
