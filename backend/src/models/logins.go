@@ -21,3 +21,35 @@ type LoginActivity struct {
 }
 
 func (LoginActivity) TableName() string { return "login_activity" }
+
+type UserSessionTracking struct {
+	ID              int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID          uint      `gorm:"not null" json:"user_id"`
+	SessionID       string    `gorm:"size:255;not null" json:"session_id"`
+	SessionStartTS  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"session_start_ts"`
+	SessionEndTS    time.Time `gorm:"default:NULL" json:"session_end_ts"`
+	SessionDuration string    `gorm:"->;type:interval;generated always as (session_end_ts - session_start_ts) stored" json:"-"`
+
+	User *User `json:"user,omitempty" gorm:"foreignKey:UserID;constraint:OnDelete CASCADE"`
+}
+
+func (UserSessionTracking) TableName() string { return "user_session_tracking" }
+
+type LoginActivityEntry struct {
+	UserId       int64  `json:"user_id"`
+	TimeInterval string `json:"time_interval"`
+	TotalLogins  int64  `json:"total_logins"`
+}
+
+type LoginEngagementActivity struct {
+	PeakLoginTimes []LoginActivityEntry `json:"peak_login_times"`
+}
+
+type EngagementActivityMetrics struct {
+	UserID                     uint      `json:"user_id"`
+	TotalHoursActiveLast30Days float64   `json:"total_hours_active_monthly"`
+	TotalHoursActiveThisWeek   float64   `json:"total_hours_active_weekly"`
+	TotalHoursEngaged          float64   `json:"total_hours_engaged"`
+	FirstActiveDate            time.Time `json:"first_active_date"`
+	LastActiveDate             time.Time `json:"last_active_date"`
+}

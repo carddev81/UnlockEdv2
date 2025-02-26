@@ -42,6 +42,10 @@ func (db *DB) CreateContentActivity(urlString string, activity *models.OpenConte
 	activity.OpenContentUrlID = url.ID
 	if err := db.Create(&activity).Error; err != nil {
 		log.Warn("unable to create content activity for url, ", urlString)
+
+func (db *DB) UpdateOpenContentActivityStopTS(activityID int64) {
+	if err := db.Debug().Model(&models.OpenContentActivity{}).Where("id = ?", activityID).Update("stop_ts", time.Now()).Error; err != nil {
+		log.Errorf("error updating open content activity: %v", err)
 	}
 }
 
@@ -140,6 +144,7 @@ func (db *DB) GetUserFavoriteGroupings(userID uint) ([]models.OpenContentItem, e
 	}
 	return favorites, nil
 }
+
 func (db *DB) GetUserFavorites(userID uint, page, perPage int, orderBy, search string) (int64, []models.OpenContentItem, error) {
 	var libSearchCond, videoSearchCond, hlSearchCond string
 	var searchTerm string
@@ -169,14 +174,14 @@ func (db *DB) GetUserFavorites(userID uint, page, perPage int, orderBy, search s
 	}
 
 	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM (
-        SELECT fav.content_id
-        FROM open_content_favorites fav
-        JOIN libraries lib ON lib.id = fav.content_id
-        JOIN open_content_providers ocp ON ocp.id = lib.open_content_provider_id
-            AND ocp.currently_enabled = true
-            AND ocp.deleted_at IS NULL
-        WHERE fav.user_id = ? %s
-    ) AS total_favorites`, libSearchCond)
+		SELECT fav.content_id
+		FROM open_content_favorites fav
+		JOIN libraries lib ON lib.id = fav.content_id
+		JOIN open_content_providers ocp ON ocp.id = lib.open_content_provider_id
+			AND ocp.currently_enabled = true
+			AND ocp.deleted_at IS NULL
+		WHERE fav.user_id = ? %s
+	) AS total_favorites`, libSearchCond)
 
 	var total int64
 	if err := db.Raw(countQuery, countArgs...).Scan(&total).Error; err != nil {
@@ -350,6 +355,93 @@ func (db *DB) GetTopFacilityLibraries(id int, perPage int, days int) ([]models.O
 		return nil, newGetRecordsDBError(err, "libraries")
 	}
 	return libraries, nil
+}
+
+type OpenContentResponse struct {
+	models.OpenContentItem
+	IsFeatured   bool    `json:"is_featured"`
+	TotalHours   float64 `json:"total_hours"`
+	TotalMinutes float64 `json:"total_minutes"`
+}
+
+func (db *DB) GetTopFiveLibrariesByUserID(userID *uint) ([]OpenContentResponse, error) {
+	libraries := make([]OpenContentResponse, 0, 5)
+	query := db.Table("libraries lib ").
+		Select(`lib.title,
+			lib.url,
+			lib.thumbnail_url,
+			lib.visibility_status,
+			lib.open_content_provider_id, 
+			CASE WHEN ocf.facility_id IS NOT NULL AND ocf.facility_id = u.facility_id THEN true
+				ELSE false
+			END as is_featured,
+			SUM(EXTRACT(EPOCH FROM oca.duration) / 3600) AS total_hours,
+			SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
+		`).
+		Joins(`join open_content_providers ocp ON ocp.id = lib.open_content_provider_id
+				AND ocp.currently_enabled = TRUE
+				AND ocp.deleted_at IS NULL`).
+		Joins(`join open_content_activities oca on oca.open_content_provider_id = ocp.id
+			and oca.content_id = lib.id`).
+		Joins(`join users u on u.id = oca.user_id
+			and u.id = ?`, userID).
+		Joins(`left outer join open_content_favorites ocf on ocf.open_content_provider_id = ocp.id
+			and ocf.content_id = lib.id`).
+		Where("oca.user_id = ?", userID).
+		Group("lib.title, lib.url, lib.thumbnail_url, lib.visibility_status, lib.open_content_provider_id, ocf.facility_id, u.facility_id").
+		Order("7 desc")
+	if err := query.Find(&libraries).Error; err != nil {
+		return nil, NewDBError(err, "error getting top 5 libraries")
+	}
+	return libraries, nil
+}
+
+func (db *DB) GetMostRecentFiveVideosByUserID(userID *uint) ([]OpenContentResponse, error) {
+	videos := make([]OpenContentResponse, 0, 5)
+	query := `with RecentVideos as (
+		select oca.content_id
+		from videos vid
+		join open_content_providers ocp on ocp.id = vid.open_content_provider_id
+			and ocp.currently_enabled = true
+			and ocp.deleted_at IS NULL
+		join open_content_activities oca on oca.content_id = vid.id
+			and oca.open_content_provider_id = ocp.id
+		where oca.user_id = ?
+		and oca.request_ts = (
+			select max(sub_oca.request_ts)
+			from open_content_activities sub_oca
+			where sub_oca.content_id = oca.content_id
+			and sub_oca.user_id = oca.user_id
+		)
+		order by oca.request_ts desc
+		limit 5
+	),
+	VideoWatchTime as (
+		select oca.content_id,
+		SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
+		from open_content_activities oca
+		join open_content_providers ocp on ocp.id = oca.open_content_provider_id
+			and ocp.currently_enabled = true
+			and ocp.deleted_at IS NULL
+		join videos vid on vid.id = oca.content_id
+			and vid.open_content_provider_id = ocp.id
+		where oca.content_id in (select content_id from RecentVideos)
+			and oca.user_id = ?
+		group by oca.content_id
+	)
+	select vid.title, vid.url,
+		vid.thumbnail_url,vid.description,
+		vid.channel_title,
+		vwt.total_minutes,
+		vwt.total_minutes / 60 as total_hours
+	from videos vid
+	join VideoWatchTime vwt on vwt.content_id = vid.id
+	order by vwt.total_minutes desc
+	limit 5`
+	if err := db.Raw(query, userID, userID).Scan(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
 }
 
 func (db *DB) GetCategories() ([]models.OpenContentCategory, error) {

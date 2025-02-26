@@ -27,6 +27,9 @@ export default function VideoViewer() {
             }
         };
         void fetchVideoData();
+        return () => {
+            window.websocketSession?.notifyOpenContentActivity();
+        };
     }, [videoId]);
 
     const handleError = () => {

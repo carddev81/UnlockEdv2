@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"UnlockEdv2/src/database"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -18,12 +22,46 @@ const (
 	bytesBuffer = 256
 )
 
+type WsEventType string
+
+const (
+	ClientHello   WsEventType = "client_hello"
+	ClientGoodbye WsEventType = "client_goodbye"
+	//SessionEvent  WsEventType = "sessions"
+	VisitEvent    WsEventType = "visits"
+	BookmarkEvent WsEventType = "bookmarks"
+)
+
+type WsMsg struct {
+	ActivityID int64  `json:"activity_id"`
+	Msg        string `json:"msg"`
+}
+
+type UserActivityEvent struct {
+	EventType WsEventType `json:"event_type"`
+	UserID    uint        `json:"user_id"`
+	SessionID string      `json:"session_id"`
+	Msg       WsMsg       `json:"msg"`
+}
+
+func (uae *UserActivityEvent) getClientKey() uint {
+	return uae.UserID
+}
+
 type WsClient struct {
-	Conn     *websocket.Conn
-	UserID   uint
-	ctx      context.Context
-	cancel   context.CancelFunc
-	sendChan chan []byte
+	Conn                  *websocket.Conn
+	UserID                uint
+	EventType             WsEventType
+	SessionID             string
+	OpenContentActivityID int64
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	sendChan              chan []byte
+	mutex                 sync.Mutex
+}
+
+func (ws *WsClient) getClientKey() uint {
+	return ws.UserID
 }
 
 type ClientManager struct {
@@ -38,42 +76,70 @@ func newClientManager() *ClientManager {
 	}
 }
 
-func (cm *ClientManager) addClient(userId uint, client *WsClient) {
+func (cm *ClientManager) addClient(client *WsClient) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
-	if cm.clients[userId] == nil {
-		cm.clients[userId] = client
-		log.Infof("Added client with user_id %d", userId)
+	clientKey := client.getClientKey()
+	if cm.clients[clientKey] == nil {
+		cm.clients[clientKey] = client
+		log.Infof("Added client with key/user_id %d", clientKey)
 	} else {
-		log.Warnf("Client already existed with user_id %d", userId)
+		log.Warnf("Client already existed with key/user_id %d", clientKey)
 	}
 }
 
-func (cm *ClientManager) removeClient(userId uint, client *WsClient, reason string) {
-	client.cancel()
-	err := client.Conn.Close(websocket.StatusNormalClosure, reason)
-	if err != nil {
-		log.Errorf("Failed to close connection: %v", err)
-	}
+func (cm *ClientManager) removeClient(client *WsClient, reason string) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
-	if cm.clients[userId] != nil {
-		log.Infof("Removing client user_id %d", client.UserID)
-		delete(cm.clients, userId)
+	if client.Conn == nil {
+		log.Warn("Connection already closed, skipping removal.")
+		return
+	}
+	clientKey := client.getClientKey()
+	if cm.clients[clientKey] != nil {
+		log.Infof("Removing client key/user_id %d", clientKey)
+		err := client.Conn.Close(websocket.StatusNormalClosure, reason)
+		if err != nil {
+			log.Errorf("Failed to close connection: %v", err)
+		}
+		delete(cm.clients, clientKey)
+		client.Conn = nil //needed to explicity nil it out
+		client.cancel()
 	}
 }
 
-func (cm *ClientManager) notifyUser(userId uint, message []byte) {
+func (cm *ClientManager) notifyUser(event UserActivityEvent) {
+	clientKey := event.getClientKey()
+	// go func() {
+	// for i := 0; i < 3; i++ { // retrying 3 times at most
 	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
-	if client, ok := cm.clients[userId]; ok {
-		client.send(message)
+	client, exists := cm.clients[clientKey]
+	cm.mutex.RUnlock()
+	if exists {
+		client.mutex.Lock()
+		defer client.mutex.Unlock()
+		client.send(event)
+		return
 	}
+
+	// 		log.Warnf("client not found for %s. retried (%d/3)...", clientKey, i+1)
+	// 		time.Sleep(500 * time.Millisecond) // waiting at most .5 sec
+	// 	}
+	// 	log.Warnf("client not found for %s after 3 retries.", clientKey)
+	// }()
 }
 
-func (client *WsClient) send(message []byte) {
-	log.Infof("Sending message to user_id %d, message: %s", client.UserID, message)
-	client.sendChan <- message
+func (client *WsClient) send(event UserActivityEvent) {
+	log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.Msg)
+	if event.Msg.ActivityID > 0 {
+		client.OpenContentActivityID = event.Msg.ActivityID
+	}
+	response, err := json.Marshal(event)
+	if err != nil {
+		log.Errorf("Failed to marshal event: %v", err)
+		return
+	}
+	client.sendChan <- response
 }
 
 func (client *WsClient) writePump() {
@@ -81,7 +147,7 @@ func (client *WsClient) writePump() {
 		select {
 		case message := <-client.sendChan:
 			log.Infof("Writing message to user_id %d", client.UserID)
-			err := client.Conn.Write(client.ctx, websocket.MessageText, message)
+			err := client.Conn.Write(context.Background(), websocket.MessageText, message)
 			if err != nil {
 				log.Errorf("Failed to write message: %v", err)
 				return
@@ -107,28 +173,94 @@ func (srv *Server) handleWebsocketConnection(w http.ResponseWriter, r *http.Requ
 		cancel:   cancel,
 		sendChan: make(chan []byte, bytesBuffer),
 	}
-	srv.wsClient.addClient(user.UserID, client)
+	//eventStr := r.PathValue("event_type")
+	// fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>", eventStr)
+	// validEventTypes := map[string]WsEventType{
+	// 	string(ClientHello):   ClientHello,
+	// 	string(ClientGoodbye): ClientGoodbye,
+	// 	string(SessionEvent):  SessionEvent,
+	// 	string(VisitEvent):    VisitEvent,
+	// 	string(BookmarkEvent): BookmarkEvent,
+	// }
+	// websocketEventType, ok := validEventTypes[eventStr]
+	// if !ok {
+	// 	err := conn.Close(websocket.StatusNormalClosure, "unrecognized event type")
+	// 	if err != nil {
+	// 		log.errorf("Failed to close connection: %v", err)
+	// 	}
+	// 	return newBadRequestServiceError(errors.New("unrecognized event type"), fmt.Sprintf("event type sent was %s", eventStr))
+	// }
+	// client.EventType = websocketEventType
+	//client with a connection already (other tab or window)
+	srv.handleIfClientExists(client, "connected from a different device or tab")
+	srv.wsClient.addClient(client)
 	go client.writePump()
 	go srv.handleWsHeartbeat(client)
 	go srv.handleWsReader(ctx, client)
 	<-ctx.Done()
-	srv.wsClient.removeClient(user.UserID, client, "") //this removes client
+	srv.wsClient.removeClient(client, "")
 	return nil
+}
+
+func (cm *ClientManager) handleCleanup(db *database.DB, clientKey uint) {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+	client, ok := cm.clients[clientKey]
+	if !ok {
+		return
+	}
+
+	if client.SessionID != "" {
+		db.LogUserSessionEnded(client.UserID, client.SessionID)
+	}
+
+	if client.OpenContentActivityID > 0 {
+		db.UpdateOpenContentActivityStopTS(client.OpenContentActivityID)
+	}
+
+}
+
+func (srv *Server) handleIfClientExists(client *WsClient, reason string) {
+	clientKey := client.getClientKey()
+	existingClient, exists := srv.wsClient.clients[clientKey]
+	if exists {
+		log.Warnf("client exists for key/user_id %d. Closing connection.", clientKey)
+		srv.wsClient.handleCleanup(srv.Db, clientKey)
+		srv.wsClient.removeClient(existingClient, reason)
+	}
 }
 
 func (srv *Server) handleWsReader(ctx context.Context, client *WsClient) {
 	defer client.cancel()
 	for {
-		_, _, err := client.Conn.Read(ctx)
-		if err != nil {
+		_, msg, err := client.Conn.Read(ctx)
+		if err != nil { //if there was an error then we should attempt a clean up
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
 				websocket.CloseStatus(err) == websocket.StatusGoingAway {
 				log.Info("WebSocket connection closed by client")
 			} else {
 				log.Errorf("Error reading from WebSocket: %v", err)
 			}
-			srv.wsClient.removeClient(client.UserID, client, "reading from client failed")
+			srv.handleIfClientExists(client, "websocket closed, unable to read message")
 			return
+		}
+		var event UserActivityEvent
+		if err := json.Unmarshal(msg, &event); err != nil {
+			log.Warnf("Invalid message event from user %d: %v", client.UserID, err)
+			continue
+		}
+		fmt.Println(">>>>>>>>>>>>>>event: ", event.EventType)
+		switch event.EventType {
+		case VisitEvent:
+			srv.Db.UpdateOpenContentActivityStopTS(event.Msg.ActivityID)
+		case ClientGoodbye:
+			srv.Db.LogUserSessionEnded(event.UserID, event.SessionID)
+		case ClientHello:
+			client.SessionID = event.SessionID
+			srv.Db.LogUserSessionStarted(client.UserID, event.SessionID)
+		default:
+			log.Warnf("Invalid event type %s", event.EventType)
+			fmt.Println("Ping....")
 		}
 	}
 }
@@ -141,9 +273,10 @@ func (srv *Server) handleWsHeartbeat(client *WsClient) {
 		case <-client.ctx.Done():
 			return
 		case <-ticker.C:
+			log.Info("sending ping???")
 			if err := client.Conn.Ping(client.ctx); err != nil {
 				log.Errorf("Failed to send ping: %v", err)
-				srv.wsClient.removeClient(client.UserID, client, "ping failed")
+				srv.wsClient.removeClient(client, "ping failed")
 				return
 			}
 		}

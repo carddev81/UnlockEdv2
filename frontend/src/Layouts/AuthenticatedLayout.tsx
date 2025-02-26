@@ -4,6 +4,8 @@ import { useMatches, UIMatch, Outlet } from 'react-router-dom';
 import PageNav from '@/Components/PageNav';
 import { RouteLabel } from '@/common';
 import { PageTitleProvider } from '@/Context/AuthLayoutPageTitleContext';
+import WebsocketSession from '@/session_ws';
+import { useAuth } from '@/useAuth';
 
 // Extend RouteMatch with custom RouteMeta
 interface CustomRouteMatch extends UIMatch {
@@ -11,6 +13,10 @@ interface CustomRouteMatch extends UIMatch {
 }
 
 export default function AuthenticatedLayout() {
+    const { user } = useAuth();
+    if (!window.websocketSession && user) {
+        window.websocketSession = new WebsocketSession(user.id);
+    }
     const matches = useMatches() as CustomRouteMatch[];
     const currentMatch = matches.find((match) => match?.handle?.title);
     const title = currentMatch?.handle?.title ?? 'UnlockEd';

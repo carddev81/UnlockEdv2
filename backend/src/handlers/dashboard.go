@@ -20,7 +20,62 @@ func (srv *Server) registerDashboardRoutes() []routeDef {
 		{"GET /api/users/{id}/admin-layer2", srv.handleAdminLayer2, true, models.Feature()},
 		{"GET /api/users/{id}/catalog", srv.handleUserCatalog, false, axx},
 		{"GET /api/users/{id}/courses", srv.handleUserCourses, false, axx},
+		{"GET /api/users/{id}/profile", srv.handleResidentProfile, false, axx},
 	}
+}
+
+func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request, log sLog) error {
+	queryParams := r.URL.Query()
+	var userID *uint
+
+	if userIDStr := queryParams.Get("user_id"); userIDStr != "" {
+		id, err := strconv.ParseUint(userIDStr, 10, 32)
+		if err != nil {
+			http.Error(w, "Invalid user_id", http.StatusBadRequest)
+			return err
+		}
+		uid := uint(id)
+		userID = &uid
+
+		// Log the userID value
+		fmt.Printf("Extracted userID: %d\n", *userID)
+	}
+
+	loginData, err := srv.Db.GetLoginEngagementActivity(userID)
+	if err != nil {
+		http.Error(w, "Failed to fetch login engagement data", http.StatusInternalServerError)
+		return err
+	}
+
+	activityEngagement, err := srv.Db.GetEngagementActivityMetrics(userID)
+	if err != nil {
+		http.Error(w, "Failed to fetch activity engagement data", http.StatusInternalServerError)
+		return err
+	}
+
+	// libs, err := srv.Db.GetTopFiveLibrariesByUserID(userID)
+	// fmt.Println(len(libs), libs)
+	// for _, v := range libs {
+	// 	fmt.Println(v.TotalHours)
+	// 	fmt.Println(v.TotalMinutes)
+	// }
+
+	// vids, err := srv.Db.GetMostRecentFiveVideosByUserID(userID)
+	// //fmt.Println(len(vids), vids)
+	// for _, v := range vids {
+	// 	fmt.Println(v.TotalHours)
+	// 	fmt.Println(v.TotalMinutes)
+	// }
+
+	response := struct {
+		LoginEngagement    interface{} `json:"login_engagement"`
+		ActivityEngagement interface{} `json:"activity_engagement"`
+	}{
+		LoginEngagement:    loginData,
+		ActivityEngagement: activityEngagement,
+	}
+
+	return writeJsonResponse(w, http.StatusOK, response)
 }
 
 func (srv *Server) handleAdminLayer2(w http.ResponseWriter, r *http.Request, log sLog) error {

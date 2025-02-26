@@ -732,3 +732,79 @@ export interface Option {
     key: number;
     value: string;
 }
+
+export enum WsEventType {
+    ClientHello = 'client_hello',
+    ClientGoodbye = 'client_goodbye',
+    Pong = 'pong',
+    VisitEvent = 'visits',
+    BookmarkEvent = 'bookmarks'
+}
+
+export interface OcActivityUpdate {
+    activity_id: number;
+}
+
+export interface WsMsg<T> {
+    event_type: WsEventType;
+    msg: T;
+    user_id: number;
+    session_id?: string;
+}
+
+export interface ClientHello {
+    msg: string;
+}
+
+export interface ClientGoodbye {
+    activity_id: number;
+}
+
+export type WsMsgType = ClientHello | ClientGoodbye | OcActivityUpdate;
+
+export type Result<T> = Success<T> | Failure;
+
+interface Success<T> {
+    value: T;
+}
+
+export function Success<T>(val?: T): Success<T> {
+    if (!val) {
+        return {} as Success<T>;
+    }
+    return { value: val };
+}
+
+export function Err(err: string): Failure {
+    return { error: err };
+}
+
+interface Failure {
+    error: string;
+}
+
+export interface PeakLoginTime {
+    time_interval: string;
+    total_logins: number;
+}
+
+export interface EngagementRateGraphProps {
+    peak_login_times: PeakLoginTime[];
+    viewType: 'hourly' | 'daily';
+}
+
+export interface EngagementActivityMetrics {
+    user_id: number;
+
+    total_hours_active_monthly: number;
+    total_hours_active_weekly: number;
+    total_hours_engaged: number;
+    first_active_date: string;
+    last_active_date: string;
+}
+
+// Unified interface that combines login and activity engagement
+export interface ResidentEngagementProfile {
+    login_engagement: EngagementRateGraphProps;
+    activity_engagement: EngagementActivityMetrics;
+}
