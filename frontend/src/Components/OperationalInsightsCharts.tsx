@@ -4,7 +4,7 @@ import { AxiosError } from 'axios';
 import { Facility, LoginMetrics, ServerResponseOne } from '@/common';
 import StatsCard from './StatsCard';
 import { ResponsiveContainer } from 'recharts';
-import EngagementRateGraph from './EngagementRateGraph';
+import NewEngagementRateGraph from './EngagementRateGraph';
 import { useAuth, canSwitchFacility } from '@/useAuth';
 
 const OperationalInsights = () => {
