@@ -129,7 +129,7 @@ func (cm *ClientManager) notifyUser(event UserActivityEvent) {
 }
 
 func (client *WsClient) send(event UserActivityEvent) {
-	log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.Msg)
+	//log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.Msg)
 	if event.Msg.ActivityID > 0 {
 		client.OpenContentActivityID = event.Msg.ActivityID
 	}
