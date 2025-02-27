@@ -3,6 +3,9 @@ import Navbar from '@/Components/Navbar';
 import { useMatches, UIMatch, Outlet } from 'react-router-dom';
 import PageNav from '@/Components/PageNav';
 import { RouteLabel } from '@/common';
+import { PageTitleProvider } from '@/Context/AuthLayoutPageTitleContext';
+import WebsocketSession from '@/session_ws';
+import { useAuth } from '@/useAuth';
 
 // Extend RouteMatch with custom RouteMeta
 interface CustomRouteMatch extends UIMatch {
@@ -10,6 +13,10 @@ interface CustomRouteMatch extends UIMatch {
 }
 
 export default function AuthenticatedLayout() {
+    const { user } = useAuth();
+    if (!window.websocketSession && user) {
+        window.websocketSession = new WebsocketSession(user.id);
+    }
     const matches = useMatches() as CustomRouteMatch[];
     const currentMatch = matches.find((match) => match?.handle?.title);
     const title = currentMatch?.handle?.title ?? 'UnlockEd';
@@ -39,35 +46,42 @@ export default function AuthenticatedLayout() {
     };
 
     return (
-        <div className="font-lato">
-            <div title={title} />
-            <div className={`drawer ${isNavPinned ? 'lg:drawer-open' : ''} `}>
-                <div className="drawer-content flex flex-col border-l border-grey-1">
-                    <main className="w-full min-h-screen bg-background flex flex-col">
-                        <PageNav
-                            showOpenMenu={!isNavPinned}
-                            onShowNav={showNav}
+        <PageTitleProvider>
+            <div className="font-lato">
+                <div title={title} />
+                <div
+                    className={`drawer ${isNavPinned ? 'lg:drawer-open' : ''} `}
+                >
+                    <div className="drawer-content flex flex-col border-l border-grey-1">
+                        <main className="w-full min-h-screen bg-background flex flex-col">
+                            <PageNav
+                                showOpenMenu={!isNavPinned}
+                                onShowNav={showNav}
+                            />
+                            <div className="grow">
+                                <Outlet />
+                            </div>
+                        </main>
+                    </div>
+                    <input
+                        id="nav-drawer"
+                        type="checkbox"
+                        className="drawer-toggle"
+                        checked={isNavOpen && !isNavPinned}
+                        onChange={() => setIsNavOpen(!isNavOpen)}
+                    />
+                    <div className="!overflow-visible drawer-side">
+                        <label
+                            htmlFor="nav-drawer"
+                            className="drawer-overlay"
+                        ></label>
+                        <Navbar
+                            onTogglePin={togglePin}
+                            isPinned={isNavPinned}
                         />
-                        <div className="grow">
-                            <Outlet />
-                        </div>
-                    </main>
-                </div>
-                <input
-                    id="nav-drawer"
-                    type="checkbox"
-                    className="drawer-toggle"
-                    checked={isNavOpen && !isNavPinned}
-                    onChange={() => setIsNavOpen(!isNavOpen)}
-                />
-                <div className="!overflow-visible drawer-side">
-                    <label
-                        htmlFor="nav-drawer"
-                        className="drawer-overlay"
-                    ></label>
-                    <Navbar onTogglePin={togglePin} isPinned={isNavPinned} />
+                    </div>
                 </div>
             </div>
-        </div>
+        </PageTitleProvider>
     );
 }

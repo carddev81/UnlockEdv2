@@ -27,6 +27,7 @@ import Programs from './Pages/Programs.tsx';
 import LibraryLayout from './Components/LibraryLayout';
 import VideoManagement from './Pages/VideoManagement';
 import {
+    AUTHCALLBACK,
     checkDefaultFacility,
     checkExistingFlow,
     checkRole,
@@ -36,14 +37,14 @@ import {
 } from '@/useAuth';
 import Loading from './Components/Loading';
 import AuthenticatedLayout from './Layouts/AuthenticatedLayout.tsx';
-import { PathValueProvider } from '@/Context/PathValueCtx';
 import AdminLayer2 from './Pages/AdminLayer2.tsx';
 import {
     getAdminLevel1Data,
     getFacilities,
     getLibraryLayoutData,
     getStudentLayer2Data,
-    getStudentLevel1Data
+    getStudentLevel1Data,
+    getProviderPlatforms
 } from './routeLoaders.ts';
 
 import FacilityManagement from '@/Pages/FacilityManagement.tsx';
@@ -51,7 +52,7 @@ import { ToastProvider } from './Context/ToastCtx.tsx';
 import VideoViewer from './Components/VideoEmbedViewer.tsx';
 import VideoContent from './Components/VideoContent.tsx';
 import OpenContentManagement from './Pages/OpenContentManagement.tsx';
-import { FeatureAccess, INIT_KRATOS_LOGIN_FLOW } from './common.ts';
+import { FeatureAccess, INIT_KRATOS_LOGIN_FLOW, UserRole } from './common.ts';
 import FavoritesPage from './Pages/Favorites.tsx';
 import StudentLayer1 from './Pages/StudentLayer1.tsx';
 import OperationalInsightsPage from './Pages/OperationalInsights.tsx';
@@ -67,10 +68,8 @@ const WithAuth: React.FC = () => {
     return (
         <AuthProvider>
             <ToastProvider>
-                <PathValueProvider>
-                    <TitleManager />
-                    <Outlet />
-                </PathValueProvider>
+                <TitleManager />
+                <Outlet />
             </ToastProvider>
         </AuthProvider>
     );
@@ -86,6 +85,18 @@ const AdminOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <UnauthorizedNotFound which="unauthorized" />
     );
 };
+const RoleGuard: React.FC<{ allowedRoles: UserRole[] }> = ({
+    allowedRoles
+}) => {
+    const { user } = useAuth();
+    if (!user) {
+        return <Navigate to="/login" />;
+    }
+    if (!allowedRoles.includes(user.role)) {
+        return <UnauthorizedNotFound which="unauthorized" />;
+    }
+    return <Outlet />;
+};
 
 function ProtectedRoute({
     allowedFeatures
@@ -94,10 +105,11 @@ function ProtectedRoute({
 }) {
     const { user } = useAuth();
     if (!user) {
-        return <Navigate to={`${INIT_KRATOS_LOGIN_FLOW}`} />;
+        window.location.href = INIT_KRATOS_LOGIN_FLOW;
+        return;
     }
     if (!allowedFeatures.every((feat) => hasFeature(user, feat))) {
-        return <Navigate to="/authcallback" />;
+        return <Navigate to={AUTHCALLBACK} />;
     }
     return <Outlet />;
 }
@@ -106,12 +118,10 @@ function WithAdmin() {
     return (
         <AuthProvider>
             <ToastProvider>
-                <PathValueProvider>
-                    <AdminOnly>
-                        <TitleManager />
-                        <Outlet />
-                    </AdminOnly>
-                </PathValueProvider>
+                <AdminOnly>
+                    <TitleManager />
+                    <Outlet />
+                </AdminOnly>
             </ToastProvider>
         </AuthProvider>
     );
@@ -136,6 +146,8 @@ const router = createBrowserRouter([
         children: [
             {
                 element: <AuthenticatedLayout />,
+                id: 'authenticated',
+                loader: getFacilities,
                 children: [
                     {
                         path: 'authcallback',
@@ -145,16 +157,14 @@ const router = createBrowserRouter([
                         path: 'consent',
                         element: <Consent />,
                         handle: {
-                            title: 'External Provider Consent',
-                            path: ['consent']
+                            title: 'External Provider Consent'
                         }
                     },
                     {
                         path: 'home',
                         element: <StudentLayer0 />,
                         handle: {
-                            title: 'UnlockEd',
-                            path: ['home']
+                            title: 'UnlockEd'
                         }
                     },
                     {
@@ -172,16 +182,14 @@ const router = createBrowserRouter([
                                 element: <StudentLayer1 />,
                                 loader: getStudentLevel1Data,
                                 handle: {
-                                    title: 'Trending Content',
-                                    path: ['trending-content']
+                                    title: 'Trending Content'
                                 }
                             },
                             {
                                 path: 'knowledge-center',
                                 element: <OpenContent />,
                                 handle: {
-                                    title: 'Knowledge Center',
-                                    path: ['knowledge-center', ':kind']
+                                    title: 'Knowledge Center'
                                 },
                                 children: [
                                     {
@@ -190,11 +198,7 @@ const router = createBrowserRouter([
                                         element: <LibraryLayout />,
                                         errorElement: <Error />,
                                         handle: {
-                                            title: 'Libraries',
-                                            path: [
-                                                'knowledge-center',
-                                                'libraries'
-                                            ]
+                                            title: 'Libraries'
                                         }
                                     },
                                     {
@@ -202,19 +206,14 @@ const router = createBrowserRouter([
                                         element: <VideoContent />,
                                         errorElement: <Error />,
                                         handle: {
-                                            title: 'Videos',
-                                            path: ['knowledge-center', 'videos']
+                                            title: 'Videos'
                                         }
                                     },
                                     {
                                         path: 'helpful-links',
                                         element: <HelpfulLinks />,
                                         handle: {
-                                            title: 'Helpful Links',
-                                            path: [
-                                                'knowledge-center',
-                                                'helpful-links'
-                                            ]
+                                            title: 'Helpful Links'
                                         }
                                     },
                                     {
@@ -222,11 +221,7 @@ const router = createBrowserRouter([
                                         element: <FavoritesPage />,
                                         errorElement: <Error />,
                                         handle: {
-                                            title: 'Favorites',
-                                            path: [
-                                                'knowledge-center',
-                                                'favorites'
-                                            ]
+                                            title: 'Favorites'
                                         }
                                     }
                                 ]
@@ -237,12 +232,7 @@ const router = createBrowserRouter([
                                 loader: getLibraryLayoutData,
                                 errorElement: <Error />,
                                 handle: {
-                                    title: 'Library Viewer',
-                                    path: [
-                                        'viewer',
-                                        'libraries',
-                                        ':library_name'
-                                    ]
+                                    title: 'Library Viewer'
                                 }
                             },
                             {
@@ -250,8 +240,7 @@ const router = createBrowserRouter([
                                 element: <VideoViewer />,
                                 errorElement: <Error />,
                                 handle: {
-                                    title: 'Video Viewer',
-                                    path: ['viewer', 'videos', ':video_name']
+                                    title: 'Video Viewer'
                                 }
                             }
                         ]
@@ -270,24 +259,21 @@ const router = createBrowserRouter([
                                 element: <StudentLayer2 />,
                                 loader: getStudentLayer2Data,
                                 handle: {
-                                    title: 'Learning Path',
-                                    path: ['learning-path']
+                                    title: 'Learning Path'
                                 }
                             },
                             {
                                 path: 'my-courses',
                                 element: <MyCourses />,
                                 handle: {
-                                    title: 'My Courses',
-                                    path: ['my-courses']
+                                    title: 'My Courses'
                                 }
                             },
                             {
                                 path: 'my-progress',
                                 element: <MyProgress />,
                                 handle: {
-                                    title: 'My Progress',
-                                    path: ['my-progress']
+                                    title: 'My Progress'
                                 }
                             }
                         ]
@@ -303,8 +289,9 @@ const router = createBrowserRouter([
                         children: [
                             {
                                 path: 'programs',
-                                element: <Programs />,
+                                id: 'programs-facilities',
                                 loader: getFacilities,
+                                element: <Programs />,
                                 handle: {
                                     title: 'Programs',
                                     path: ['programs']
@@ -336,16 +323,23 @@ const router = createBrowserRouter([
                         element: <OperationalInsightsPage />,
                         errorElement: <Error />,
                         handle: {
-                            title: 'Operational Insights',
-                            path: ['operational-insights']
+                            title: 'Operational Insights'
                         }
                     },
                     {
                         path: 'residents',
+                        loader: getProviderPlatforms,
                         element: <StudentManagement />,
                         errorElement: <Error />,
                         handle: {
-                            title: 'Residents',
+                            title: 'Residents'
+                        }
+                    },
+                    {
+                        path: 'residents/:id',
+                        element: <StudentProfile />,
+                        handle: {
+                            title: 'Resident Profile',
                             path: ['residents']
                         }
                     },
@@ -359,20 +353,54 @@ const router = createBrowserRouter([
                     },
                     {
                         path: 'admins',
-                        element: <AdminManagement />,
                         errorElement: <Error />,
                         handle: {
-                            title: 'Admins',
-                            path: ['admins']
-                        }
+                            title: 'Admins'
+                        },
+                        element: (
+                            <RoleGuard
+                                allowedRoles={[
+                                    UserRole.SystemAdmin,
+                                    UserRole.DepartmentAdmin
+                                ]}
+                            />
+                        ),
+                        children: [
+                            {
+                                path: '',
+                                loader: getProviderPlatforms,
+                                element: <AdminManagement />,
+                                errorElement: <Error />,
+                                handle: {
+                                    title: 'Admins',
+                                    path: ['admins']
+                                }
+                            }
+                        ]
                     },
                     {
                         path: 'facilities',
-                        element: <FacilityManagement />,
                         handle: {
-                            title: 'Facilities',
-                            path: ['facilities']
-                        }
+                            title: 'Facilities'
+                        },
+                        element: (
+                            <RoleGuard
+                                allowedRoles={[
+                                    UserRole.DepartmentAdmin,
+                                    UserRole.SystemAdmin
+                                ]}
+                            />
+                        ),
+                        children: [
+                            {
+                                path: '',
+                                element: <FacilityManagement />,
+                                errorElement: <Error />,
+                                handle: {
+                                    title: 'Facilities'
+                                }
+                            }
+                        ]
                     },
                     {
                         path: '',
@@ -388,35 +416,46 @@ const router = createBrowserRouter([
                                 element: <AdminLayer2 />,
                                 errorElement: <Error />,
                                 handle: {
-                                    title: 'Learning Insights',
-                                    path: ['learning-insights']
+                                    title: 'Learning Insights'
                                 }
                             },
                             {
                                 path: 'learning-platforms',
-                                element: <ProviderPlatformManagement />,
                                 handle: {
-                                    title: 'Learning Platforms',
-                                    path: ['learning-platforms']
-                                }
+                                    title: 'Learning Platforms'
+                                },
+                                element: (
+                                    <RoleGuard
+                                        allowedRoles={[
+                                            UserRole.SystemAdmin,
+                                            UserRole.DepartmentAdmin
+                                        ]}
+                                    />
+                                ),
+                                children: [
+                                    {
+                                        path: '',
+                                        element: <ProviderPlatformManagement />,
+                                        errorElement: <Error />,
+                                        handle: {
+                                            title: 'Learning Platforms',
+                                            path: ['learning-platforms']
+                                        }
+                                    }
+                                ]
                             },
                             {
                                 path: 'provider-users/:id',
                                 element: <ProviderUserManagement />,
                                 handle: {
-                                    title: 'Learning Platforms User Management',
-                                    path: [
-                                        'provider-platforms',
-                                        ':provider_platform_name'
-                                    ]
+                                    title: 'Learning Platforms User Management'
                                 }
                             },
                             {
                                 path: 'course-catalog-admin',
                                 element: <CourseCatalog />,
                                 handle: {
-                                    title: 'Course Catalog',
-                                    path: ['course-catalog']
+                                    title: 'Course Catalog'
                                 }
                             }
                         ]
@@ -437,16 +476,14 @@ const router = createBrowserRouter([
                                 element: <AdminLayer1 />,
                                 loader: getAdminLevel1Data,
                                 handle: {
-                                    title: 'Knowledge Insights',
-                                    path: ['knowledge-insights']
+                                    title: 'Knowledge Insights'
                                 }
                             },
                             {
                                 path: 'knowledge-center-management',
                                 element: <OpenContentManagement />,
                                 handle: {
-                                    title: 'Knowledge Center Management',
-                                    path: ['knowledge-center', ':kind']
+                                    title: 'Knowledge Center Management'
                                 },
                                 children: [
                                     {
@@ -455,36 +492,28 @@ const router = createBrowserRouter([
                                         element: <LibraryLayout />,
                                         errorElement: <Error />,
                                         handle: {
-                                            title: 'Libraries Management',
-                                            path: [
-                                                'knowledge-center',
-                                                'libraries'
-                                            ]
+                                            title: 'Libraries Management'
                                         }
                                     },
                                     {
                                         path: 'videos',
                                         element: <VideoManagement />,
                                         handle: {
-                                            title: 'Videos Management',
-                                            path: ['knowledge-center', 'videos']
+                                            title: 'Videos Management'
                                         }
                                     },
                                     {
                                         path: 'helpful-links',
                                         element: <HelpfulLinksManagement />,
                                         handle: {
-                                            title: 'Helpful Links Management',
-                                            path: [
-                                                'knowledge-center',
-                                                'helpful-links'
-                                            ]
+                                            title: 'Helpful Links Management'
                                         }
                                     }
                                 ]
                             }
                         ]
                     },
+
                     {
                         path: '*',
                         element: <UnauthorizedNotFound which="notFound" />

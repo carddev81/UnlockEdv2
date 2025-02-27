@@ -2,7 +2,8 @@ import { ReactNode } from 'react';
 
 export enum UserRole {
     SystemAdmin = 'system_admin',
-    Admin = 'admin',
+    DepartmentAdmin = 'department_admin',
+    FacilityAdmin = 'facility_admin',
     Student = 'student'
 }
 export enum FeatureAccess {
@@ -101,8 +102,8 @@ export interface OryFlow {
     expires_at: string;
     id: string;
     issued_at: string;
-    oauth2_login_challenge: string;
-    oauth2_login_request: Oauth2LoginRequest;
+    oauth2_login_challenge?: string;
+    oauth2_login_request?: Oauth2LoginRequest;
     organization_id: string;
     refresh: boolean;
     request_url: string;
@@ -475,6 +476,7 @@ export enum ProgramType {
 export interface LearningInsight {
     course_name: string;
     total_students_enrolled: number;
+    total_students_completed: number;
     completion_rate: number;
     activity_hours: number;
 }
@@ -732,6 +734,7 @@ export interface Option {
     value: string;
 }
 
+
 export enum WebSocketEventType {
     SessionEvent = 'sessions',
     VisitEvent = 'visits',
@@ -761,8 +764,7 @@ export interface UserInfo {
 
 export interface SessionEngagementActivityWithUserInfo {
     user_info: UserInfo;
-    user_engagement_times: PeakLoginTime[];
-}
+    user_engagement_times: PeakLoginTime[];}
 
 export interface EngagementActivityMetrics {
     user_id: number;
@@ -773,6 +775,7 @@ export interface EngagementActivityMetrics {
     first_active_date: string;
     last_active_date: string;
 }
+
 export interface OpenContentResponse extends OpenContentItem {
     is_featured: boolean;
     total_hours: number;

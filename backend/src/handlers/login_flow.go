@@ -144,7 +144,7 @@ func setLoginCookies(resp *http.Response, w http.ResponseWriter) {
 		http.SetCookie(w, &http.Cookie{
 			Name:     cookie.Name,
 			Value:    cookie.Value,
-			Expires:  time.Now().Add(24 * time.Hour),
+			Expires:  time.Now().Add(12 * time.Hour),
 			SameSite: http.SameSiteNoneMode,
 			HttpOnly: true,
 			Secure:   true,
@@ -268,8 +268,12 @@ func (srv *Server) handleRefreshAuth(w http.ResponseWriter, r *http.Request, log
 	if err != nil {
 		return newCreateRequestServiceError(err)
 	}
+	redirectTo, ok := consentResponse["redirect_to"].(string)
+	if !ok {
+		return newBadRequestServiceError(errors.New("hydra auth refresh failed"), "Bad Request")
+	}
 	return writeJsonResponse(w, http.StatusOK, map[string]string{
-		"redirect_to": consentResponse["redirect_to"].(string),
+		"redirect_to": redirectTo,
 	})
 }
 

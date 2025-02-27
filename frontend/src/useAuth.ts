@@ -24,10 +24,26 @@ export const AuthContext = createContext<AuthContextType | undefined>(
     undefined
 );
 
-export const AdminRoles = [UserRole.SystemAdmin, UserRole.Admin];
+export const AdminRoles = [
+    UserRole.SystemAdmin,
+    UserRole.FacilityAdmin,
+    UserRole.DepartmentAdmin
+];
 
+export function canSwitchFacility(user: User): boolean {
+    return isSysAdmin(user) || isDeptAdmin(user);
+}
 export const isAdministrator = (user: User | undefined): boolean => {
     return user !== undefined && AdminRoles.includes(user.role);
+};
+export const isSysAdmin = (user: User | undefined): boolean => {
+    return user !== undefined && user.role === UserRole.SystemAdmin;
+};
+export const isDeptAdmin = (user: User | undefined): boolean => {
+    return user !== undefined && user.role === UserRole.DepartmentAdmin;
+};
+export const isFacilityAdmin = (user: User | undefined): boolean => {
+    return user !== undefined && user.role === UserRole.FacilityAdmin;
 };
 
 export const isStudent = (user: User): boolean => {
@@ -36,6 +52,7 @@ export const isStudent = (user: User): boolean => {
 
 export const SESSION_URL = '/sessions/whoami';
 export const KRATOS_CHECK_FLOW_URL = '/self-service/login/flows?id=';
+export const AUTHCALLBACK = '/authcallback';
 
 export async function fetchUser(): Promise<User | undefined> {
     const response = await API.get<User>('auth');
@@ -60,8 +77,8 @@ export const initFlow = async (flow: string): Promise<AuthFlow> => {
     try {
         const resp = await axios.get<OryFlow>(KRATOS_CHECK_FLOW_URL + flow);
         if (resp.status !== 200) {
-            console.error('Error initializing login flow');
-            return { flow_id: '', challenge: '', csrf_token: '' };
+            // bad flow id, redirect to login
+            return redirectTo(INIT_KRATOS_LOGIN_FLOW);
         }
         return {
             flow_id: resp.data.id,
@@ -69,7 +86,7 @@ export const initFlow = async (flow: string): Promise<AuthFlow> => {
             csrf_token: resp.data.ui.nodes[0].attributes.value
         };
     } catch {
-        return { flow_id: '', challenge: '', csrf_token: '' };
+        return redirectTo(INIT_KRATOS_LOGIN_FLOW);
     }
 };
 
@@ -113,6 +130,11 @@ export const checkExistingFlow: LoaderFunction = async ({ request }) => {
             checkResp.data.active &&
             checkResp.data.identity.traits
         ) {
+            if (!attributes.challenge) {
+                // if the user is logged in and there is no oauth2 challenge:
+                // redirect to the auth callback
+                return json<AuthFlow>(redirectTo(AUTHCALLBACK));
+            }
             const reqBody = {
                 username: checkResp.data.identity.traits.username,
                 identity: checkResp.data.identity.id,
@@ -156,27 +178,25 @@ export async function handleLogout(): Promise<void> {
 
 export const getDashboardLink = (user?: User) => {
     if (!user) return '/';
-    return isAdministrator(user)
-        ? getAdminLink(user)
-        : getResidentLink(user);
+    return isAdministrator(user) ? getAdminLink(user) : getResidentLink(user);
 };
 
 const getAdminLink = (user: User): string => {
     if (user.feature_access.includes(FeatureAccess.OpenContentAccess)) {
-        return "/knowledge-insights";
+        return '/knowledge-insights';
     }
     if (user.feature_access.includes(FeatureAccess.ProviderAccess)) {
-        return "/learning-insights";
+        return '/learning-insights';
     }
-    return "/operational-insights";
+    return '/operational-insights';
 };
 
 const getResidentLink = (user: User): string => {
     if (user.feature_access.includes(FeatureAccess.OpenContentAccess)) {
-        return "/trending-content";
+        return '/trending-content';
     }
     if (user.feature_access.includes(FeatureAccess.ProviderAccess)) {
-        return "/learning-path";
+        return '/learning-path';
     }
-    return "/home";
+    return '/home';
 };

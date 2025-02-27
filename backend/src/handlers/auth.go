@@ -196,6 +196,7 @@ func (srv *Server) validateOrySession(r *http.Request) (*Claims, bool, error) {
 			log.WithFields(fields).Errorln("error decoding active session from ory response")
 			return nil, hasCookie, err
 		}
+		// sessionID, ok := oryResp["id"].(string)
 		if active {
 			identity, ok := oryResp["identity"].(map[string]interface{})
 			if ok {
@@ -235,6 +236,12 @@ func (srv *Server) validateOrySession(r *http.Request) (*Claims, bool, error) {
 					KratosID:      kratosID,
 					Role:          user.Role,
 					FeatureAccess: srv.features,
+				}
+				if string(user.Role) != traits["role"].(string) {
+					err := srv.updateUserTraitsInKratos(claims)
+					if err != nil {
+						log.WithFields(fields).Errorf("Error updating user traits in kratos: %v", err)
+					}
 				}
 				return claims, hasCookie, nil
 			}

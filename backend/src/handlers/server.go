@@ -5,7 +5,6 @@ import (
 	"UnlockEdv2/src/models"
 	"context"
 	"encoding/json"
-	"math"
 	"net/http"
 	"os"
 	"reflect"
@@ -393,6 +392,13 @@ func (srv *Server) isTesting(r *http.Request) bool {
 	return r.Context().Value(TestingClaimsKey) != nil
 }
 
+func (srv *Server) createContentActivityAndNotifyWS(urlString string, activity *models.OpenContentActivity) {
+	srv.Db.CreateContentActivity(urlString, activity)
+	if activity.ID > 0 {
+		srv.wsClient.notifyUser(UserActivityEvent{EventType: VisitEvent, UserID: activity.UserID, Msg: WsMsg{ActivityID: activity.ID, Msg: "placeholder"}})
+	}
+}
+
 func (srv *Server) getPaginationInfo(r *http.Request) (int, int) {
 	page := r.URL.Query().Get("page")
 	perPage := r.URL.Query().Get("per_page")
@@ -481,11 +487,4 @@ func (srv *Server) errorResponse(w http.ResponseWriter, status int, message stri
 		log.Error("error writing error response: ", err)
 		http.Error(w, message, status)
 	}
-}
-
-func (srv *Server) calculateLast(total int64, perPage int) int {
-	if perPage == 0 {
-		return 0
-	}
-	return int(math.Ceil(float64(total) / float64(perPage)))
 }

@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import API from '@/api/api';
-import { Video, ServerResponseOne, WebSocketEventType } from '@/common';
-import { usePathValue } from '@/Context/PathValueCtx';
-import useWebSocketTracker from './useWebSocket';
-import { useAuth } from '@/useAuth';
+import { Video, ServerResponseOne } from '@/common';
+import { usePageTitle } from '@/Context/AuthLayoutPageTitleContext';
 
 export default function VideoViewer() {
     const { user } = useAuth();
@@ -15,7 +13,7 @@ export default function VideoViewer() {
     const { id: videoId } = useParams();
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const { setPathVal } = usePathValue();
+    const { setPageTitle: setAuthLayoutPageTitle } = usePageTitle();
     const [video, setVideo] = useState<Video | undefined>();
 
     const { activityID, isConnected } = useWebSocketTracker(
@@ -35,12 +33,7 @@ export default function VideoViewer() {
             )) as ServerResponseOne<Video>;
             if (resp.success) {
                 setIsLoading(false);
-                setPathVal([
-                    {
-                        path_id: ':video_name',
-                        value: resp.data.channel_title
-                    }
-                ]);
+                setAuthLayoutPageTitle(resp.data.title);
                 setVideo(resp.data);
             } else {
                 setError(resp.message);
@@ -48,6 +41,9 @@ export default function VideoViewer() {
             }
         };
         void fetchVideoData();
+        return () => {
+            window.websocketSession?.notifyOpenContentActivity();
+        };
     }, [videoId]);
 
     const handleError = () => {

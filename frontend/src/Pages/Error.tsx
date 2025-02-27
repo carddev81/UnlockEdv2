@@ -1,3 +1,5 @@
+import { AUTHCALLBACK } from '@/useAuth';
+
 export default function Error() {
     return (
         <>
@@ -10,7 +12,7 @@ export default function Error() {
                 <button
                     className="btn btn-primary btn-outline"
                     onClick={() => {
-                        window.location.href = '/authcallback';
+                        window.location.href = AUTHCALLBACK;
                     }}
                 >
                     Home Page

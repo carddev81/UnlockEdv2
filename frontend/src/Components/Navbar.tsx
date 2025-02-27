@@ -20,7 +20,13 @@ import {
     RocketLaunchIcon,
     ArrowTrendingUpIcon
 } from '@heroicons/react/24/solid';
-import { handleLogout, hasFeature, isAdministrator, useAuth } from '@/useAuth';
+import {
+    handleLogout,
+    hasFeature,
+    isAdministrator,
+    useAuth,
+    canSwitchFacility
+} from '@/useAuth';
 import Modal from '@/Components/Modal';
 import ULIComponent from './ULIComponent';
 import { Link } from 'react-router-dom';
@@ -168,12 +174,16 @@ export default function Navbar({
                             )}
                             {hasFeature(user, FeatureAccess.ProviderAccess) && (
                                 <>
-                                    <li>
-                                        <Link to="/learning-platforms">
-                                            <ULIComponent icon={CloudIcon} />
-                                            Learning Platforms
-                                        </Link>
-                                    </li>
+                                    {canSwitchFacility(user) && (
+                                        <li>
+                                            <Link to="/learning-platforms">
+                                                <ULIComponent
+                                                    icon={CloudIcon}
+                                                />
+                                                Learning Platforms
+                                            </Link>
+                                        </li>
+                                    )}
                                     <li>
                                         <Link to="/course-catalog-admin">
                                             <ULIComponent icon={CloudIcon} />
@@ -196,20 +206,24 @@ export default function Navbar({
                                     Residents
                                 </Link>
                             </li>
-                            <li>
-                                <Link to="/admins">
-                                    <ULIComponent icon={UsersIcon} />
-                                    Admins
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/facilities">
-                                    <ULIComponent
-                                        icon={BuildingStorefrontIcon}
-                                    />
-                                    Facilities
-                                </Link>
-                            </li>
+                            {canSwitchFacility(user) && (
+                                <li>
+                                    <Link to="/admins">
+                                        <ULIComponent icon={UsersIcon} />
+                                        Admins
+                                    </Link>
+                                </li>
+                            )}
+                            {canSwitchFacility(user) && (
+                                <li>
+                                    <Link to="/facilities">
+                                        <ULIComponent
+                                            icon={BuildingStorefrontIcon}
+                                        />
+                                        Facilities
+                                    </Link>
+                                </li>
+                            )}
                         </>
                     ) : (
                         <>
@@ -241,7 +255,9 @@ export default function Navbar({
                                 <>
                                     <li>
                                         <Link to="/trending-content">
-                                            <ULIComponent icon={ArrowTrendingUpIcon} />
+                                            <ULIComponent
+                                                icon={ArrowTrendingUpIcon}
+                                            />
                                             Trending Content
                                         </Link>
                                     </li>
@@ -257,7 +273,9 @@ export default function Navbar({
                                 <>
                                     <li>
                                         <Link to="/learning-path">
-                                            <ULIComponent icon={RocketLaunchIcon} />
+                                            <ULIComponent
+                                                icon={RocketLaunchIcon}
+                                            />
                                             Learning Path
                                         </Link>
                                     </li>

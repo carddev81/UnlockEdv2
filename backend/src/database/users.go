@@ -25,42 +25,41 @@ func getValidOrder(order string) string {
 	return order
 }
 
-func calcOffset(page, itemsPerPage int) int {
-	return (page - 1) * itemsPerPage
+func calcOffset(page, perPage int) int {
+	return (page - 1) * perPage
 }
 
-func (db *DB) GetCurrentUsers(page, perPage int, facilityId uint, order string, search string, role string) (int64, []models.User, error) {
-	if search != "" {
-		return db.SearchCurrentUsers(page, perPage, facilityId, order, search, role)
+func (db *DB) GetCurrentUsers(qCtx *models.QueryContext, role string) ([]models.User, error) {
+	if qCtx.Search != "" {
+		return db.SearchCurrentUsers(qCtx, role)
 	}
-	var count int64
-	tx := db.Model(&models.User{}).Where("facility_id = ?", facilityId)
+	tx := db.Model(&models.User{}).Where("facility_id = ?", qCtx.FacilityID)
 	switch role {
-	case "admin":
-		tx = tx.Where("role IN ('admin', 'system_admin')")
+	case "system_admin":
+		tx = tx.Where("role IN ('system_admin',  'department_admin', 'facility_admin')")
+	case "department_admin":
+		tx = tx.Where("role IN ('department_admin', 'facility_admin')")
 	case "student":
 		tx = tx.Where("role = 'student'")
 	}
-	if err := tx.Count(&count).Error; err != nil {
-		return 0, nil, newGetRecordsDBError(err, "users")
+	if err := tx.Count(&qCtx.Total).Error; err != nil {
+		return nil, newGetRecordsDBError(err, "users")
 	}
-	users := make([]models.User, 0, perPage)
-	if err := tx.Order(getValidOrder(order)).
-		Offset(calcOffset(page, perPage)).
-		Limit(perPage).
+	users := make([]models.User, 0, qCtx.PerPage)
+	if err := tx.Order(getValidOrder(qCtx.Order)).
+		Offset(qCtx.CalcOffset()).
+		Limit(qCtx.PerPage).
 		Find(&users).
 		Error; err != nil {
 		log.Printf("Error fetching users: %v", err)
-		return 0, nil, newGetRecordsDBError(err, "users")
+		return nil, newGetRecordsDBError(err, "users")
 	}
-	return count, users, nil
+	return users, nil
 }
 
-func (db *DB) SearchCurrentUsers(page, perPage int, facilityId uint, order, search string, role string) (int64, []models.User, error) {
-	var count int64
-	search = strings.TrimSpace(search)
-	likeSearch := "%" + strings.ToLower(search) + "%"
-	tx := db.Model(&models.User{}).Where("facility_id = ?", facilityId)
+func (db *DB) SearchCurrentUsers(ctx *models.QueryContext, role string) ([]models.User, error) {
+	likeSearch := "%" + ctx.Search + "%"
+	tx := db.Model(&models.User{}).Where("facility_id = ?", ctx.FacilityID)
 	switch role {
 	case "admin":
 		tx = tx.Where("role IN ('admin', 'system_admin')")
@@ -68,40 +67,40 @@ func (db *DB) SearchCurrentUsers(page, perPage int, facilityId uint, order, sear
 		tx = tx.Where("role = 'student'")
 	}
 	tx = tx.Where("LOWER(name_first) LIKE ? OR LOWER(username) LIKE ? OR LOWER(name_last) LIKE ?", likeSearch, likeSearch, likeSearch)
-	if err := tx.Count(&count).Error; err != nil {
-		return 0, nil, newGetRecordsDBError(err, "users")
+	if err := tx.Count(&ctx.Total).Error; err != nil {
+		return nil, newGetRecordsDBError(err, "users")
 	}
-	users := make([]models.User, 0, count)
-	if err := tx.Order(getValidOrder(order)).
+	users := make([]models.User, 0, ctx.PerPage)
+	if err := tx.Order(getValidOrder(ctx.Order)).
 		Find(&users).
-		Offset(calcOffset(page, perPage)).
-		Limit(perPage).
+		Offset(ctx.CalcOffset()).
+		Limit(ctx.PerPage).
 		Error; err != nil {
 		log.Printf("Error fetching users: %v", err)
-		return 0, nil, newGetRecordsDBError(err, "users")
+		return nil, newGetRecordsDBError(err, "users")
 	}
 	if len(users) == 0 {
-		split := strings.Fields(search)
+		split := strings.Fields(ctx.Search)
 		if len(split) > 1 {
 			first := "%" + split[0] + "%"
 			last := "%" + split[1] + "%"
 			tx := db.Model(&models.User{}).
-				Where("facility_id = ?", facilityId).
+				Where("facility_id = ?", ctx.FacilityID).
 				Where("(LOWER(name_first) LIKE ? AND LOWER(name_last) LIKE ?) OR (LOWER(name_first) LIKE ? AND LOWER(name_last) LIKE ?)", first, last, last, first)
-			if err := tx.Count(&count).Error; err != nil {
+			if err := tx.Count(&ctx.Total).Error; err != nil {
 				log.Printf("Error fetching users: %v", err)
-				return 0, nil, newGetRecordsDBError(err, "users")
+				return nil, newGetRecordsDBError(err, "users")
 			}
-			if err := tx.Order(order).
-				Offset(calcOffset(page, perPage)).
-				Limit(perPage).
+			if err := tx.Order(ctx.Order).
+				Offset(ctx.CalcOffset()).
+				Limit(ctx.PerPage).
 				Find(&users).Error; err != nil {
 				log.Printf("Error fetching users: %v", err)
-				return 0, nil, newGetRecordsDBError(err, "users")
+				return nil, newGetRecordsDBError(err, "users")
 			}
 		}
 	}
-	return count, users, nil
+	return users, nil
 }
 
 func (db *DB) GetUserByID(id uint) (*models.User, error) {
@@ -154,7 +153,7 @@ func (db *DB) GetUserByUsername(username string) (*models.User, error) {
 func (db *DB) UsernameExists(username string) bool {
 	userExists := false
 	email := username + "@unlocked.v2"
-	if err := db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE username = ? OR email = ?)", strings.ToLower(username), email).
+	if err := db.Raw("SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(username) = ? OR email = ?)", strings.ToLower(username), email).
 		Scan(&userExists).Error; err != nil {
 		log.Error("Error checking if username exists: ", err)
 	}
@@ -416,5 +415,6 @@ func (db *DB) GetEngagementActivityMetrics(userID int) (*models.EngagementActivi
 	if err := query.Find(&engagementActivityMetrics).Error; err != nil {
 		return nil, NewDBError(err, "error getting engagement_activity")
 	}
+
 	return &engagementActivityMetrics, nil
 }

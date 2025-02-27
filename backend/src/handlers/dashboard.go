@@ -73,8 +73,24 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 func (srv *Server) handleAdminLayer2(w http.ResponseWriter, r *http.Request, log sLog) error {
 	claims := r.Context().Value(ClaimsKey).(*Claims)
 	clearCache := r.URL.Query().Get("reset") == "true"
+	facility := r.URL.Query().Get("facility")
+	var facilityId *uint
+	switch facility {
+	case "all":
+		facilityId = nil
+	case "":
+		facilityId = &claims.FacilityID
+	default:
+		var err error
+		facilityIdInt, err := strconv.Atoi(facility)
+		if err != nil {
+			return newInternalServerServiceError(err, "Facility ID")
+		}
+		ref := uint(facilityIdInt)
+		facilityId = &ref
+	}
 	if !srv.isTesting(r) {
-		key := fmt.Sprintf("admin-layer2-%d", claims.FacilityID)
+		key := fmt.Sprintf("admin-layer2-%d", facilityId)
 		cached, err := srv.buckets[AdminLayer2].Get(key)
 		if err != nil && errors.Is(err, nats.ErrKeyNotFound) || clearCache {
 			newCacheData, err := srv.getLayer2Data(r, log)
@@ -260,16 +276,11 @@ func (srv *Server) handleUserCourses(w http.ResponseWriter, r *http.Request, log
 	if !srv.canViewUserData(r, userId) {
 		return newForbiddenServiceError(err, "You do not have permission to view this user's courses")
 	}
-	order := r.URL.Query().Get("order")
-	orderBy := r.URL.Query().Get("order_by")
-	search := r.URL.Query().Get("search")
-	search = strings.ToLower(search)
-	search = strings.TrimSpace(search)
-	tags := r.URL.Query()["tags"]
-	// TODO: cache this response
-	userCourses, err := srv.Db.GetUserCourses(uint(userId), order, orderBy, search, tags)
+	args := srv.getQueryContext(r)
+	args.UserID = uint(userId)
+	userCourses, err := srv.Db.GetUserCourses(&args)
 	if err != nil {
-		log.add("search", search)
+		log.add("search", args.Search)
 		return newDatabaseServiceError(err)
 	}
 	return writeJsonResponse(w, http.StatusOK, userCourses)

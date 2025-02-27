@@ -1,3 +1,4 @@
+
 import useSWR from 'swr';
 import { AxiosError } from 'axios';
 import {
@@ -106,7 +107,7 @@ const StudentProfile = () => {
                                             width="100%"
                                             height="100%"
                                             debounce={500}
-                                        >
+
                                             <EngagementRateGraph
                                                 data={
                                                     metrics?.session_engagement

@@ -15,7 +15,7 @@ import (
 )
 
 func (srv *Server) registerWebsocketRoute() {
-	srv.Mux.Handle("/api/ws/listen/{event_type}", srv.authMiddleware(srv.handleError(srv.handleWebsocketConnection)))
+	srv.Mux.Handle("/api/ws/listen", srv.authMiddleware(srv.handleError(srv.handleWebsocketConnection)))
 }
 
 const (
@@ -51,20 +51,21 @@ type WsClient struct {
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	sendChan              chan []byte
+	mutex                 sync.Mutex
 }
 
-func (ws *WsClient) getClientKey() string {
-	return fmt.Sprintf("%s-%d", ws.EventType, ws.UserID)
+func (ws *WsClient) getClientKey() uint {
+	return ws.UserID
 }
 
 type ClientManager struct {
-	clients map[string]*WsClient
+	clients map[uint]*WsClient
 	mutex   sync.RWMutex
 }
 
 func newClientManager() *ClientManager {
 	return &ClientManager{
-		clients: make(map[string]*WsClient),
+		clients: make(map[uint]*WsClient),
 		mutex:   sync.RWMutex{},
 	}
 }
@@ -75,9 +76,9 @@ func (cm *ClientManager) addClient(client *WsClient) {
 	clientKey := client.getClientKey()
 	if cm.clients[clientKey] == nil {
 		cm.clients[clientKey] = client
-		log.Infof("Added client with event_type-user_id %s", clientKey)
+		log.Infof("Added client with key/user_id %d", clientKey)
 	} else {
-		log.Warnf("Client already existed with event_type-user_id %s", clientKey)
+		log.Warnf("Client already existed with key/user_id %d", clientKey)
 	}
 }
 
@@ -90,7 +91,7 @@ func (cm *ClientManager) removeClient(client *WsClient, reason string) {
 	}
 	clientKey := client.getClientKey()
 	if cm.clients[clientKey] != nil {
-		log.Infof("Removing client user_id %d, with key %s", client.UserID, clientKey)
+		log.Infof("Removing client key/user_id %d", clientKey)
 		err := client.Conn.Close(websocket.StatusNormalClosure, reason)
 		if err != nil {
 			log.Errorf("Failed to close connection: %v", err)
@@ -102,16 +103,31 @@ func (cm *ClientManager) removeClient(client *WsClient, reason string) {
 }
 
 func (cm *ClientManager) notifyUser(event UserActivityEvent) {
+	clientKey := event.getClientKey()
+	// go func() {
+	// for i := 0; i < 3; i++ { // retrying 3 times at most
 	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
-	if client, ok := cm.clients[event.getClientKey()]; ok {
-		client.OpenContentActivityID = event.OpenContentActivityID
+	client, exists := cm.clients[clientKey]
+	cm.mutex.RUnlock()
+	if exists {
+		client.mutex.Lock()
+		defer client.mutex.Unlock()
 		client.send(event)
+		return
 	}
+
+	// 		log.Warnf("client not found for %s. retried (%d/3)...", clientKey, i+1)
+	// 		time.Sleep(500 * time.Millisecond) // waiting at most .5 sec
+	// 	}
+	// 	log.Warnf("client not found for %s after 3 retries.", clientKey)
+	// }()
 }
 
 func (client *WsClient) send(event UserActivityEvent) {
-	log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.OpenContentActivityID)
+	//log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.Msg)
+	if event.Msg.ActivityID > 0 {
+		client.OpenContentActivityID = event.Msg.ActivityID
+	}
 	response, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("Failed to marshal event: %v", err)
@@ -151,17 +167,24 @@ func (srv *Server) handleWebsocketConnection(w http.ResponseWriter, r *http.Requ
 		cancel:   cancel,
 		sendChan: make(chan []byte, bytesBuffer),
 	}
-	eventStr := r.PathValue("event_type")
-	validEventTypes := map[string]WebsocketEventType{
-		string(SessionEvent):  SessionEvent,
-		string(VisitEvent):    VisitEvent,
-		string(BookmarkEvent): BookmarkEvent,
-	}
-	websocketEventType, ok := validEventTypes[eventStr]
-	if !ok {
-		return newBadRequestServiceError(errors.New("unrecognized event type"), fmt.Sprintf("event type sent was %s", eventStr))
-	}
-	client.EventType = websocketEventType
+	//eventStr := r.PathValue("event_type")
+	// fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>", eventStr)
+	// validEventTypes := map[string]WsEventType{
+	// 	string(ClientHello):   ClientHello,
+	// 	string(ClientGoodbye): ClientGoodbye,
+	// 	string(SessionEvent):  SessionEvent,
+	// 	string(VisitEvent):    VisitEvent,
+	// 	string(BookmarkEvent): BookmarkEvent,
+	// }
+	// websocketEventType, ok := validEventTypes[eventStr]
+	// if !ok {
+	// 	err := conn.Close(websocket.StatusNormalClosure, "unrecognized event type")
+	// 	if err != nil {
+	// 		log.errorf("Failed to close connection: %v", err)
+	// 	}
+	// 	return newBadRequestServiceError(errors.New("unrecognized event type"), fmt.Sprintf("event type sent was %s", eventStr))
+	// }
+	// client.EventType = websocketEventType
 	//client with a connection already (other tab or window)
 	srv.handleIfClientExists(client, "connected from a different device or tab")
 	srv.wsClient.addClient(client)
@@ -173,22 +196,20 @@ func (srv *Server) handleWebsocketConnection(w http.ResponseWriter, r *http.Requ
 	return nil
 }
 
-func (cm *ClientManager) handleCleanup(db *database.DB, clientKey string) {
+func (cm *ClientManager) handleCleanup(db *database.DB, clientKey uint) {
 	cm.mutex.RLock()
 	defer cm.mutex.RUnlock()
 	client, ok := cm.clients[clientKey]
 	if !ok {
 		return
 	}
-	switch client.EventType {
-	case SessionEvent:
-		if client.SessionID != "" {
-			db.LogUserSessionEnded(client.UserID, client.SessionID)
-		}
-	case VisitEvent:
-		if client.OpenContentActivityID > 0 {
-			db.UpdateOpenContentActivityStopTS(client.OpenContentActivityID)
-		}
+
+	if client.SessionID != "" {
+		db.LogUserSessionEnded(client.UserID, client.SessionID)
+	}
+
+	if client.OpenContentActivityID > 0 {
+		db.UpdateOpenContentActivityStopTS(client.OpenContentActivityID)
 	}
 }
 
@@ -196,7 +217,7 @@ func (srv *Server) handleIfClientExists(client *WsClient, reason string) {
 	clientKey := client.getClientKey()
 	existingClient, exists := srv.wsClient.clients[clientKey]
 	if exists {
-		log.Warnf("client already exists for %s. closing old connection.", clientKey)
+		log.Warnf("client exists for key/user_id %d. Closing connection.", clientKey)
 		srv.wsClient.handleCleanup(srv.Db, clientKey)
 		srv.wsClient.removeClient(existingClient, reason)
 	}
@@ -222,17 +243,19 @@ func (srv *Server) handleWsReader(ctx context.Context, client *WsClient) {
 			log.Warnf("Invalid message event from user %d: %v", client.UserID, err)
 			continue
 		}
+    
+		fmt.Println(">>>>>>>>>>>>>>event: ", event.EventType)
 		switch event.EventType {
 		case VisitEvent:
-			fmt.Println("TEST THIS LATER:  are these the same IDs>>>>>>>>>", client.OpenContentActivityID == event.OpenContentActivityID)
-			srv.Db.UpdateOpenContentActivityStopTS(event.OpenContentActivityID)
-		case SessionEvent:
-			if event.IsClosing {
-				srv.Db.LogUserSessionEnded(event.UserID, event.SessionID)
-			} else {
-				client.SessionID = event.SessionID
-				srv.Db.LogUserSessionStarted(client.UserID, event.SessionID)
-			}
+			srv.Db.UpdateOpenContentActivityStopTS(event.Msg.ActivityID)
+		case ClientGoodbye:
+			srv.Db.LogUserSessionEnded(event.UserID, event.SessionID)
+		case ClientHello:
+			client.SessionID = event.SessionID
+			srv.Db.LogUserSessionStarted(client.UserID, event.SessionID)
+		default:
+			log.Warnf("Invalid event type %s", event.EventType)
+			fmt.Println("Ping....")
 		}
 	}
 }

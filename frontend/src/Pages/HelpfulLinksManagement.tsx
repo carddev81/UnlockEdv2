@@ -8,10 +8,6 @@ import {
     UserRole
 } from '@/common';
 import HelpfulLinkCard from '@/Components/cards/HelpfulLinkCard';
-import AddLinkForm from '@/Components/forms/AddLinkForm';
-import DeleteForm from '@/Components/DeleteForm';
-import EditLinkForm from '@/Components/forms/EditLinkForm';
-import Modal from '@/Components/Modal';
 import SearchBar from '@/Components/inputs/SearchBar';
 import Pagination from '@/Components/Pagination';
 import { PlusCircleIcon } from '@heroicons/react/24/outline';
@@ -21,15 +17,24 @@ import { useDebounceValue } from 'usehooks-ts';
 import useSWR from 'swr';
 import { AxiosError } from 'axios';
 import API from '@/api/api';
-import { isAdministrator, useAuth } from '@/useAuth';
+import { useAuth } from '@/useAuth';
 import DropdownControl from '@/Components/inputs/DropdownControl';
+import {
+    AddHelpfulLinkModal,
+    closeModal,
+    EditHelpfulLinkModal,
+    showModal,
+    TextModalType,
+    TextOnlyModal
+} from '@/Components/modals';
+import { useCheckResponse } from '@/Hooks/useCheckResponse';
 
 export default function HelpfulLinksManagement() {
     const { user } = useAuth();
     const addLinkModal = useRef<HTMLDialogElement>(null);
     const editLinkModal = useRef<HTMLDialogElement>(null);
     const deleteLinkModal = useRef<HTMLDialogElement>(null);
-    const [currentLink, setCurrentLink] = useState<HelpfulLink>();
+    const [currentLink, setCurrentLink] = useState<HelpfulLink | null>(null);
     const [perPage, setPerPage] = useState<number>(10);
     const [pageQuery, setPageQuery] = useState<number>(1);
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -38,30 +43,36 @@ export default function HelpfulLinksManagement() {
         FilterLibrariesVidsandHelpfulLinksResident['Title (A to Z)']
     );
     const { toaster } = useToast();
-
     const { data, mutate, error, isLoading } = useSWR<
         ServerResponseOne<HelpfulLinkAndSort>,
         AxiosError
     >(
         `/api/helpful-links?search=${searchQuery[0]}&page=${pageQuery}&per_page=${perPage}&order_by=${sortQuery}`
     );
+    const checkResponseForDelete = useCheckResponse({
+        mutate: mutate,
+        refModal: deleteLinkModal
+    });
     const helpfulLinks = data?.data.helpful_links ?? [];
     const meta = data?.data.meta;
 
-    function updateLinks() {
-        addLinkModal.current?.close();
-        editLinkModal.current?.close();
-        void mutate();
-    }
-    async function deleteLink(id: number | undefined) {
-        const response = await API.delete(`helpful-links/${id}`);
-        if (response.success) {
-            updateLinks();
-            toaster('Helpful link deleted successfully', ToastState.success);
-        } else {
+    async function deleteLink() {
+        const response = await API.delete(`helpful-links/${currentLink?.id}`);
+
+        if (!response.success) {
             toaster('Error deleting helpful link', ToastState.error);
         }
-        deleteLinkModal.current?.close();
+        checkResponseForDelete(
+            response.success,
+            'Error deleting facility',
+            'Facility successfully deleted'
+        );
+        closeDeleteLink();
+    }
+
+    function closeDeleteLink() {
+        closeModal(deleteLinkModal);
+        setCurrentLink(null);
     }
 
     function showModifyLink(
@@ -72,9 +83,9 @@ export default function HelpfulLinksManagement() {
         e.stopPropagation();
         setCurrentLink(link);
         if (type === ModalType.Edit) {
-            editLinkModal.current?.showModal();
+            showModal(editLinkModal);
         } else if (type === ModalType.Delete) {
-            deleteLinkModal.current?.showModal();
+            showModal(deleteLinkModal);
         }
     }
 
@@ -88,7 +99,6 @@ export default function HelpfulLinksManagement() {
         setPageQuery(1);
         void mutate();
     };
-
     return (
         <>
             <div className="flex flex-row justify-between">
@@ -108,7 +118,7 @@ export default function HelpfulLinksManagement() {
                 <div
                     className="button cursor-pointer items-center"
                     onClick={() => {
-                        addLinkModal.current?.showModal();
+                        showModal(addLinkModal);
                     }}
                 >
                     <PlusCircleIcon className="w-4 my-auto" />
@@ -122,57 +132,30 @@ export default function HelpfulLinksManagement() {
                         <HelpfulLinkCard
                             key={index}
                             link={link}
-                            mutate={updateLinks}
+                            mutate={() => void mutate()}
                             showModal={showModifyLink}
-                            role={
-                                isAdministrator(user)
-                                    ? UserRole.Admin
-                                    : UserRole.Student
-                            }
+                            role={user ? user?.role : UserRole.Student}
                         />
                     );
                 })}
             </div>
             {/* Modals */}
-            <Modal
-                ref={addLinkModal}
-                type={ModalType.Add}
-                item={'Helpful Link'}
-                form={<AddLinkForm onSuccess={updateLinks} />}
-            />
-            <Modal
+            <AddHelpfulLinkModal mutate={mutate} ref={addLinkModal} />
+            <EditHelpfulLinkModal
+                mutate={mutate}
+                targetLink={currentLink ?? ({} as HelpfulLink)}
                 ref={editLinkModal}
-                type={ModalType.Edit}
-                item={'Helpful Link'}
-                form={
-                    currentLink ? (
-                        <EditLinkForm
-                            link={currentLink}
-                            onSuccess={updateLinks}
-                        />
-                    ) : (
-                        <div>No link selected!</div>
-                    )
-                }
             />
-            <Modal
+            <TextOnlyModal
                 ref={deleteLinkModal}
-                type={ModalType.Delete}
-                item={'Helpful Link'}
-                form={
-                    <DeleteForm
-                        item={'Helpful Link'}
-                        onCancel={() => {
-                            setCurrentLink(undefined);
-                        }}
-                        onSuccess={() => {
-                            void deleteLink(currentLink?.id);
-                            void updateLinks;
-                        }}
-                    />
+                type={TextModalType.Delete}
+                title={'Delete Link'}
+                text={
+                    'Are you sure you would like to delete this helpful link? This action cannot be undone.'
                 }
+                onSubmit={() => void deleteLink()}
+                onClose={closeDeleteLink}
             />
-
             {!isLoading && !error && meta && (
                 <div className="flex justify-center">
                     <Pagination

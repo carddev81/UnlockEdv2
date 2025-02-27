@@ -9,14 +9,15 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/sirupsen/logrus"
 	"github.com/wader/goutubedl"
 	"gorm.io/gorm"
 )
@@ -27,6 +28,23 @@ type Thumbnail struct {
 	Height float64 `json:"height"`
 }
 
+type YoutubeDataResponse struct {
+	Items []struct {
+		ID      string `json:"id"`
+		Snippet struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Thumbnails  struct {
+				Default Thumbnail `json:"default"`
+				High    Thumbnail `json:"high"`
+				Medium  Thumbnail `json:"medium"`
+				Low     Thumbnail `json:"low"`
+			} `json:"thumbnails"`
+			ChannelTitle string `json:"channelTitle"`
+		} `json:"snippet"`
+	} `json:"items"`
+}
+
 type VideoService struct {
 	BaseUrl               string
 	OpenContentProviderID uint
@@ -35,11 +53,15 @@ type VideoService struct {
 	db                    *gorm.DB
 	bucketName            string
 	s3Svc                 *s3.Client
+	apiKey                string
 }
+
+const YtQueryParams = "&part=snippet,statistics&fields=items(id,snippet,statistics)"
 
 func NewVideoService(prov *models.OpenContentProvider, db *gorm.DB, body *map[string]interface{}) *VideoService {
 	// in development, this needs to remain empty unless you have s3 access
 	bucketName := os.Getenv("S3_BUCKET_NAME")
+	apiKey := os.Getenv("YOUTUBE_API_KEY")
 	var svc *s3.Client = nil
 	if bucketName != "" {
 		logger().Info("s3 bucket found, creating client")
@@ -57,6 +79,7 @@ func NewVideoService(prov *models.OpenContentProvider, db *gorm.DB, body *map[st
 		db:                    db,
 		s3Svc:                 svc,
 		bucketName:            bucketName,
+		apiKey:                apiKey,
 	}
 }
 
@@ -151,47 +174,52 @@ func (yt *VideoService) syncVideoMetadataFromS3(ctx context.Context) error {
 			jsonFiles = append(jsonFiles, *item.Key)
 		}
 	}
-	wg := sync.WaitGroup{}
 	if len(jsonFiles) == 0 {
 		return nil
 	}
-	wg.Add(len(jsonFiles))
 	for _, key := range jsonFiles {
-		go func(key string) {
-			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				ytId := strings.TrimSuffix(strings.TrimPrefix(key, "videos/"), ".json")
-				if ytId == "" {
-					return
-				}
-				if yt.db.WithContext(ctx).Find(&models.Video{}, "external_id = ?", ytId).RowsAffected > 0 {
-					logger().Infof("video with external_id %v already exists", ytId)
-					return
-				}
-				obj, err := yt.s3Svc.GetObject(ctx, &s3.GetObjectInput{
-					Bucket: aws.String(yt.bucketName),
-					Key:    aws.String(key),
-				})
+		select {
+		case <-ctx.Done():
+			return ctx.Err() // Exit if the context is canceled
+		default:
+			ytId := strings.TrimSuffix(strings.TrimPrefix(key, "videos/"), ".json")
+			if ytId == "" {
+				continue
+			}
+
+			if yt.db.WithContext(ctx).Find(&models.Video{}, "external_id = ?", ytId).RowsAffected > 0 {
+				logger().Infof("video with external_id %v already exists", ytId)
+				continue
+			}
+
+			obj, err := yt.s3Svc.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: aws.String(yt.bucketName),
+				Key:    aws.String(key),
+			})
+			if err != nil {
+				logger().Errorf("error getting video json from s3: %v", err)
+				continue
+			}
+			defer obj.Body.Close()
+			video := &models.Video{}
+			if err := json.NewDecoder(obj.Body).Decode(video); err != nil {
+				logger().Errorf("error decoding video json: %v", err)
+				continue
+			}
+			if strings.Contains(video.Url, "youtu") {
+				_, err := yt.fetchYoutubeInfo(ctx, video.Url)
 				if err != nil {
-					logger().Errorf("error getting video json from s3: %v", err)
-					return
+					if _, _, err := yt.fetchAndSaveInitialVideoInfo(ctx, video.Url, true); err != nil {
+						logger().Errorf("error fetching video info: %v", err)
+					}
 				}
-				defer obj.Body.Close()
-				video := &models.Video{}
-				if err := json.NewDecoder(obj.Body).Decode(video); err != nil {
-					logger().Errorf("error decoding video json: %v", err)
-					return
-				}
+			} else {
 				if _, _, err := yt.fetchAndSaveInitialVideoInfo(ctx, video.Url, true); err != nil {
 					logger().Errorf("error fetching video info: %v", err)
 				}
 			}
-		}(key)
+		}
 	}
-	wg.Wait()
 	return nil
 }
 
@@ -293,27 +321,21 @@ func (vs *VideoService) retryFailedVideos(ctx context.Context) error {
 	if err := vs.db.WithContext(ctx).Model(&models.Video{}).Find(&videos, "availability <> 'available'").Error; err != nil {
 		logger().Errorf("error fetching failed videos: %v", err)
 	}
-	wg := sync.WaitGroup{}
-	wg.Add(len(videos))
 	for _, video := range videos {
-		go func(video models.Video) {
-			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				if err := vs.retrySingleVideo(ctx, int(video.ID)); err != nil {
-					logger().Errorf("error retrying single video: %v", err)
-					err = vs.incrementFailedAttempt(ctx, &video, err.Error())
-					if err != nil {
-						logger().Error("error incrementing failed attempt ", err)
-						return
-					}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := vs.retrySingleVideo(ctx, int(video.ID)); err != nil {
+				logger().Errorf("error retrying single video: %v", err)
+				err = vs.incrementFailedAttempt(ctx, &video, err.Error())
+				if err != nil {
+					logger().Error("error incrementing failed attempt ", err)
+					continue
 				}
 			}
-		}(video)
+		}
 	}
-	wg.Wait()
 	return nil
 }
 
@@ -336,12 +358,12 @@ func (vs *VideoService) retrySingleVideo(ctx context.Context, videoId int) error
 		return vs.incrementFailedAttempt(ctx, &video, err.Error())
 	}
 	if video.Availability == models.VideoAvailable {
-		logger().Errorf("video is already available")
+		logger().Errorf("video %s is already available", video.ExternalID)
 		return nil
 	}
 	// prevent attempts to retry the video within 30 mins of creation or 10 mins of a recent failed attempt
 	if video.Availability == models.VideoProcessing && (video.CreatedAt.After(time.Now().Add(-30*time.Minute)) || video.HasRecentAttempt()) {
-		logger().Errorf("video was retried while still processing")
+		logger().Errorf("video %s was retried while still processing", video.ExternalID)
 		return nil
 	}
 	err := vs.downloadVideo(ctx, nil, &video)
@@ -357,43 +379,88 @@ func (yt *VideoService) addVideos(ctx context.Context) error {
 	urls := params["video_urls"].([]interface{})
 	logger().Infof("Adding videos: %v", urls)
 
-	var wg sync.WaitGroup
-	wg.Add(len(urls))
-
 	for idx := range urls {
 		urlStr := urls[idx].(string)
-		go func(url string) {
-			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				var videoExists bool
-				tx := yt.db.WithContext(ctx).Model(&models.Video{}).Select("count(*) > 0")
-				if strings.Contains(url, "youtu") {
-					tx = tx.Where("external_id = ?", ytIdFromUrl(url))
-				} else {
-					tx = tx.Where("url = ?", url)
-				}
-				if err := tx.Scan(&videoExists).Error; err != nil || videoExists {
-					logger().Errorf("video already exists: %v", url)
-					return
-				}
-				result, vid, err := yt.fetchAndSaveInitialVideoInfo(ctx, url, false)
-				if err != nil {
-					logger().Errorf("Error fetching video info: %v", err)
-					return
-				}
-				err = yt.downloadVideo(ctx, result, vid)
-				if err != nil {
-					logger().Errorf("Error downloading video: %v", err)
-					return
-				}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var videoExists bool
+			tx := yt.db.WithContext(ctx).Model(&models.Video{}).Select("count(*) > 0")
+			if strings.Contains(urlStr, "youtu") {
+				tx = tx.Where("external_id = ?", ytIdFromUrl(urlStr))
+			} else {
+				tx = tx.Where("url = ?", urlStr)
 			}
-		}(urlStr)
+			if err := tx.Scan(&videoExists).Error; err != nil || videoExists {
+				logger().Errorf("video already exists: %v", urlStr)
+				continue
+			}
+			result, vid, err := yt.fetchAndSaveInitialVideoInfo(ctx, urlStr, false)
+			if err != nil {
+				logger().Errorf("Error fetching video info: %v", err)
+				continue
+			}
+			err = yt.downloadVideo(ctx, result, vid)
+			if err != nil {
+				logger().Errorf("Error downloading video: %v", err)
+				continue
+			}
+		}
 	}
-	wg.Wait()
 	return nil
+}
+
+func (vs *VideoService) fetchYoutubeInfo(ctx context.Context, ytUrl string) (*models.Video, error) {
+	parsed, err := url.Parse(ytUrl)
+	if err != nil {
+		logger().Errorf("Error parsing url: %v", err)
+		return nil, err
+	}
+	id := parsed.Query().Get("v")
+	finalUrl := fmt.Sprintf("%s?id=%s&key=%s%s", vs.BaseUrl, id, vs.apiKey, YtQueryParams)
+	logger().Infof("url to fetch video: %s", finalUrl)
+	resp, err := http.Get(finalUrl)
+	if err != nil {
+		logger().Errorf("Error getting video: %v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var data YoutubeDataResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		logger().Errorf("Error decoding video info: %v", err)
+		return nil, err
+	}
+	if len(data.Items) == 0 {
+		logger().Errorf("Video not found in response from youtube API")
+		return nil, fmt.Errorf("Video %s not found", id)
+	}
+	logger().Infof("Adding videos: %v", data)
+	url := data.Items[0].Snippet.Thumbnails.High.Url
+	if url == "" {
+		url = data.Items[0].Snippet.Thumbnails.Default.Url
+	}
+	thumbnailUrl, err := vs.downloadAndHostThumbnail(data.Items[0].ID, url)
+	if err != nil {
+		logrus.Errorf("Error downloading and hosting thumbnail: %v", err)
+		thumbnailUrl = ""
+	}
+	vid := &models.Video{
+		ExternalID:            data.Items[0].ID,
+		Title:                 data.Items[0].Snippet.Title,
+		Url:                   ytUrl,
+		Description:           stripUrlsFromDescription(data.Items[0].Snippet.Description),
+		ChannelTitle:          &data.Items[0].Snippet.ChannelTitle,
+		Availability:          models.VideoProcessing,
+		ThumbnailUrl:          thumbnailUrl,
+		VisibilityStatus:      true,
+		OpenContentProviderID: vs.OpenContentProviderID,
+	}
+	err = vs.db.WithContext(ctx).Create(vid).Error
+	if err != nil {
+		logrus.Errorf("Error creating video: %v", err)
+	}
+	return vid, err
 }
 
 func (yt *VideoService) incrementFailedAttempt(ctx context.Context, vid *models.Video, vidError string) error {

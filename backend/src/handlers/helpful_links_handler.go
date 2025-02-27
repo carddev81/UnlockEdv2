@@ -4,6 +4,7 @@ import (
 	"UnlockEdv2/src/database"
 	"UnlockEdv2/src/models"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -92,6 +93,7 @@ func (srv *Server) handleEditLink(w http.ResponseWriter, r *http.Request, log sL
 		return newInvalidIdServiceError(err, "Invalid id")
 	}
 	defer r.Body.Close()
+	link.ThumbnailUrl = srv.getFavicon(link.Url)
 	if err = srv.Db.EditLink(uint(id), link); err != nil {
 		return newDatabaseServiceError(err)
 	}
@@ -171,14 +173,10 @@ func (srv *Server) handleFavoriteLink(w http.ResponseWriter, r *http.Request, lo
 
 func (srv *Server) getFavicon(link string) string {
 	logrus.Printf("Getting favicon for link %s", link)
-	baseUrl, err := url.Parse(link)
-	if err != nil {
+	parsed, err := url.Parse(link)
+	if err != nil || parsed.Hostname() == "" {
 		return "/ul-logo.png"
 	}
-	maybeIcon := baseUrl.Scheme + "://" + baseUrl.Host + "/favicon.ico"
-	resp, err := srv.Client.Head(maybeIcon)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return "/ul-logo.png"
-	}
-	return maybeIcon
+	domain := parsed.Hostname()
+	return fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s&sz=64", domain)
 }

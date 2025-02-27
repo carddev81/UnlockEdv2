@@ -29,6 +29,7 @@ type OpenContentActivity struct {
 	ContentID             uint      `gorm:"not null" json:"content_id"`
 	OpenContentUrlID      uint      `gorm:"not null" json:"open_content_url_id"`
 	RequestTS             time.Time `gorm:"type:timestamp(0);default:CURRENT_TIMESTAMP" json:"request_ts"`
+
 	//FIXME JUST TESTING
 	StopTS time.Time `gorm:"type:timestamp(0);default:NULL" json:"stop_ts"`
 
@@ -41,8 +42,18 @@ type OpenContentFavorite struct {
 	UserID                uint      `gorm:"not null" json:"user_id"`
 	ContentID             uint      `gorm:"not null" json:"content_id"`
 	OpenContentProviderID uint      `gorm:"not null" json:"open_content_provider_id"`
+	OpenContentUrlID      *uint     `json:"open_content_url_id,omitempty"`
+	Name                  string    `json:"name,omitempty"`
 	FacilityID            *uint     `json:"facility_id"`
 	CreatedAt             time.Time `json:"created_at"`
+}
+
+type OpenContentParams struct {
+	Name                  string `json:"name"`
+	UserID                uint   `json:"user_id"`
+	ContentURL            string `json:"content_url"`
+	ContentID             uint   `json:"content_id"`
+	OpenContentProviderID uint   `json:"open_content_provider_id"`
 }
 
 func (OpenContentActivity) TableName() string { return "open_content_activities" }

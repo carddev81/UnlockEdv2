@@ -9,14 +9,16 @@ import {
     ResponsiveContainer
 } from 'recharts';
 import { ThemeContext } from '@/Context/ThemeContext';
-import { PeakLoginTime } from '@/common';
 
 interface EngagementRateGraphProps {
+    peak_login_times: { time_interval: string; total_logins: number }[];
     viewType: 'hourly' | 'daily';
-    data: PeakLoginTime[];
 }
 
-const EngagementRateGraph = ({ data, viewType }: EngagementRateGraphProps) => {
+const EngagementRateGraph = ({
+    peak_login_times,
+    viewType
+}: EngagementRateGraphProps) => {
     const { theme } = useContext(ThemeContext);
 
     const strokeColor = theme === 'light' ? '#666' : '#CCC';

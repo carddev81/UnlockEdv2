@@ -49,7 +49,7 @@ export default function LoginForm() {
         if (loaderData.identifier) {
             setUser(loaderData.identifier);
         }
-    });
+    }, [loaderData]);
     return (
         <Form
             method="post"

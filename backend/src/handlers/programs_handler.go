@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 func (srv *Server) registerProgramsRoutes() []routeDef {
@@ -29,27 +28,13 @@ func (srv *Server) registerProgramsRoutes() []routeDef {
 * ?searchFields=: searchFields
  */
 func (srv *Server) handleIndexPrograms(w http.ResponseWriter, r *http.Request, log sLog) error {
-	page, perPage := srv.getPaginationInfo(r)
-	userId := srv.getUserID(r)
-	search := r.URL.Query().Get("search")
-	tags := r.URL.Query()["tags"]
-	var tagsSplit []string
-	if len(tags) > 0 {
-		tagsSplit = strings.Split(tags[0], ",")
-	}
-	total, programs, err := srv.Db.GetProgram(page, perPage, tagsSplit, search, userId)
+	args := srv.getQueryContext(r)
+	programs, err := srv.Db.GetPrograms(&args)
 	if err != nil {
-		log.add("search", search)
+		log.add("search", args.Search)
 		return newDatabaseServiceError(err)
 	}
-	last := srv.calculateLast(total, perPage)
-	paginationData := models.PaginationMeta{
-		PerPage:     perPage,
-		LastPage:    int(last),
-		CurrentPage: page,
-		Total:       total,
-	}
-	return writePaginatedResponse(w, http.StatusOK, programs, paginationData)
+	return writePaginatedResponse(w, http.StatusOK, programs, args.IntoMeta())
 }
 
 func (srv *Server) handleShowProgram(w http.ResponseWriter, r *http.Request, log sLog) error {
@@ -76,11 +61,15 @@ type ProgramForm struct {
 }
 
 func (srv *Server) handleCreateProgram(w http.ResponseWriter, r *http.Request, log sLog) error {
+	claims := r.Context().Value(ClaimsKey).(*Claims)
 	var program ProgramForm
 	err := json.NewDecoder(r.Body).Decode(&program)
 	defer r.Body.Close()
 	if err != nil {
 		return newJSONReqBodyServiceError(err)
+	}
+	if len(program.Facilities) == 0 {
+		program.Facilities = []int{int(claims.FacilityID)}
 	}
 	newProg := models.Program{
 		Name:          program.Name,
