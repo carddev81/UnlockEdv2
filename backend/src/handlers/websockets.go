@@ -4,7 +4,6 @@ import (
 	"UnlockEdv2/src/database"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -102,15 +101,13 @@ func (cm *ClientManager) removeClient(client *WsClient, reason string) {
 			log.Errorf("Failed to close connection: %v", err)
 		}
 		delete(cm.clients, clientKey)
-		client.Conn = nil //needed to explicity nil it out
+		client.Conn = nil
 		client.cancel()
 	}
 }
 
 func (cm *ClientManager) notifyUser(event UserActivityEvent) {
 	clientKey := event.getClientKey()
-	// go func() {
-	// for i := 0; i < 3; i++ { // retrying 3 times at most
 	cm.mutex.RLock()
 	client, exists := cm.clients[clientKey]
 	cm.mutex.RUnlock()
@@ -120,16 +117,10 @@ func (cm *ClientManager) notifyUser(event UserActivityEvent) {
 		client.send(event)
 		return
 	}
-
-	// 		log.Warnf("client not found for %s. retried (%d/3)...", clientKey, i+1)
-	// 		time.Sleep(500 * time.Millisecond) // waiting at most .5 sec
-	// 	}
-	// 	log.Warnf("client not found for %s after 3 retries.", clientKey)
-	// }()
 }
 
 func (client *WsClient) send(event UserActivityEvent) {
-	//log.Infof("Sending message to user_id %d, message: %d", client.UserID, event.Msg)
+	log.Infof("Sending message to user_id %d, message: %s, activityID: %d", client.UserID, event.Msg.Msg, event.Msg.ActivityID)
 	if event.Msg.ActivityID > 0 {
 		client.OpenContentActivityID = event.Msg.ActivityID
 	}
@@ -172,25 +163,6 @@ func (srv *Server) handleWebsocketConnection(w http.ResponseWriter, r *http.Requ
 		cancel:   cancel,
 		sendChan: make(chan []byte, bytesBuffer),
 	}
-	//eventStr := r.PathValue("event_type")
-	// fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>", eventStr)
-	// validEventTypes := map[string]WsEventType{
-	// 	string(ClientHello):   ClientHello,
-	// 	string(ClientGoodbye): ClientGoodbye,
-	// 	string(SessionEvent):  SessionEvent,
-	// 	string(VisitEvent):    VisitEvent,
-	// 	string(BookmarkEvent): BookmarkEvent,
-	// }
-	// websocketEventType, ok := validEventTypes[eventStr]
-	// if !ok {
-	// 	err := conn.Close(websocket.StatusNormalClosure, "unrecognized event type")
-	// 	if err != nil {
-	// 		log.errorf("Failed to close connection: %v", err)
-	// 	}
-	// 	return newBadRequestServiceError(errors.New("unrecognized event type"), fmt.Sprintf("event type sent was %s", eventStr))
-	// }
-	// client.EventType = websocketEventType
-	//client with a connection already (other tab or window)
 	srv.handleIfClientExists(client, "connected from a different device or tab")
 	srv.wsClient.addClient(client)
 	go client.writePump()
@@ -208,15 +180,12 @@ func (cm *ClientManager) handleCleanup(db *database.DB, clientKey uint) {
 	if !ok {
 		return
 	}
-
 	if client.SessionID != "" {
 		db.LogUserSessionEnded(client.UserID, client.SessionID)
 	}
-
 	if client.OpenContentActivityID > 0 {
 		db.UpdateOpenContentActivityStopTS(client.OpenContentActivityID)
 	}
-
 }
 
 func (srv *Server) handleIfClientExists(client *WsClient, reason string) {
@@ -237,10 +206,11 @@ func (srv *Server) handleWsReader(ctx context.Context, client *WsClient) {
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
 				websocket.CloseStatus(err) == websocket.StatusGoingAway {
 				log.Info("WebSocket connection closed by client")
+				srv.handleIfClientExists(client, "websocket closed, unable to read message")
 			} else {
 				log.Errorf("Error reading from WebSocket: %v", err)
 			}
-			srv.handleIfClientExists(client, "websocket closed, unable to read message")
+			srv.wsClient.removeClient(client, "websocket closed, unable to read message")
 			return
 		}
 		var event UserActivityEvent
@@ -248,7 +218,6 @@ func (srv *Server) handleWsReader(ctx context.Context, client *WsClient) {
 			log.Warnf("Invalid message event from user %d: %v", client.UserID, err)
 			continue
 		}
-		fmt.Println(">>>>>>>>>>>>>>event: ", event.EventType)
 		switch event.EventType {
 		case VisitEvent:
 			srv.Db.UpdateOpenContentActivityStopTS(event.Msg.ActivityID)
@@ -259,7 +228,6 @@ func (srv *Server) handleWsReader(ctx context.Context, client *WsClient) {
 			srv.Db.LogUserSessionStarted(client.UserID, event.SessionID)
 		default:
 			log.Warnf("Invalid event type %s", event.EventType)
-			fmt.Println("Ping....")
 		}
 	}
 }

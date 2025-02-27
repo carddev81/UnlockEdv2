@@ -119,42 +119,43 @@ export default function LibraryViewer() {
         };
         void fetchLibraryData();
         return () => {
+            window.websocketSession?.notifyOpenContentActivity(); //on this call we need to zero out the activity_id
             sessionStorage.removeItem('tag');
         };
     }, [libraryId, url, setAuthLayoutPageTitle]);
 
-    const socketRef = useRef<WebSocket | null>(null);
-    const [isConnected, setIsConnected] = useState(false);
-    useEffect(() => {
-        //websocket effect
-        const protocol =
-            window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const host = window.location.hostname;
-        const socket = new WebSocket(`${protocol}${host}/api/ws/listen`);
-        // Handle incoming messages
-        socketRef.current = socket;
-        socket.onopen = () => {
-            setIsConnected(true);
-            console.log('WebSocket connected');
-        };
-        socket.onmessage = (event) => {
-            try {
-                setBookmarked(event.data === 'true');
-            } catch (error) {
-                console.error('Error parsing WebSocket message:', error);
-            }
-        };
-        socket.onclose = () => {
-            console.log('WebSocket closed');
-            setIsConnected(false);
-        };
-        //send message to let server know the user?
-        return () => {
-            if (socketRef.current && isConnected) {
-                socketRef.current.close();
-            }
-        };
-    }, [src, isConnected]);
+    // const socketRef = useRef<WebSocket | null>(null);
+    // const [isConnected, setIsConnected] = useState(false);
+    // useEffect(() => {
+    //     //websocket effect
+    //     const protocol =
+    //         window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    //     const host = window.location.hostname;
+    //     const socket = new WebSocket(`${protocol}${host}/api/ws/listen`);
+    //     // Handle incoming messages
+    //     socketRef.current = socket;
+    //     socket.onopen = () => {
+    //         setIsConnected(true);
+    //         console.log('WebSocket connected');
+    //     };
+    //     socket.onmessage = (event) => {
+    //         try {
+    //             setBookmarked(event.data === 'true');
+    //         } catch (error) {
+    //             console.error('Error parsing WebSocket message:', error);
+    //         }
+    //     };
+    //     socket.onclose = () => {
+    //         console.log('WebSocket closed');
+    //         setIsConnected(false);
+    //     };
+    //     //send message to let server know the user?
+    //     return () => {
+    //         if (socketRef.current && isConnected) {
+    //             socketRef.current.close();
+    //         }
+    //     };
+    // }, [src, isConnected]);
 
     const toggleBookmark = (e: MouseEvent) => {
         e.preventDefault();

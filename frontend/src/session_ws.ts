@@ -138,11 +138,10 @@ export class WebsocketSession {
                 >;
                 // if an activity_id is received, end any prior activity and update the id.
                 if (data.event_type !== undefined) {
-                    if (
-                        this.currentActivityId !== 0 &&
-                        data.event_type === WsEventType.VisitEvent
-                    ) {
+                    if (this.currentActivityId !== 0 && data.event_type === WsEventType.VisitEvent) {
                         this.notifyOpenContentActivity();
+                    }
+                    if (data.event_type === WsEventType.VisitEvent) {
                         this.currentActivityId = (
                             data.msg as OcActivityUpdate
                         ).activity_id;

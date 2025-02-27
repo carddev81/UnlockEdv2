@@ -28,7 +28,7 @@ export default function VideoViewer() {
         };
         void fetchVideoData();
         return () => {
-            window.websocketSession?.notifyOpenContentActivity();
+            window.websocketSession?.notifyOpenContentActivity(); //on this call we need to zero out the activity_id
         };
     }, [videoId]);
 

@@ -396,6 +396,18 @@ func (srv *Server) createContentActivityAndNotifyWS(urlString string, activity *
 	srv.Db.CreateContentActivity(urlString, activity)
 	if activity.ID > 0 {
 		srv.wsClient.notifyUser(UserActivityEvent{EventType: VisitEvent, UserID: activity.UserID, Msg: WsMsg{ActivityID: activity.ID, Msg: "placeholder"}})
+		if !strings.HasPrefix(urlString, "/viewer/videos") {
+			var (
+				bookmark models.OpenContentFavorite
+				wsMsg    WsMsg
+			)
+			if srv.Db.Model(&models.OpenContentFavorite{}).Where("user_id = ? AND content_id = ? AND open_content_url_id = ?", activity.UserID, activity.ContentID, activity.OpenContentUrlID).First(&bookmark).RowsAffected > 0 {
+				wsMsg = WsMsg{Msg: "true"}
+			} else {
+				wsMsg = WsMsg{Msg: "false"}
+			}
+			srv.wsClient.notifyUser(UserActivityEvent{EventType: BookmarkEvent, UserID: activity.UserID, Msg: wsMsg})
+		}
 	}
 }
 
