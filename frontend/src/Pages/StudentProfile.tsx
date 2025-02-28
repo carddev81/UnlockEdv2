@@ -190,7 +190,11 @@ const StudentProfile = () => {
                                                                 'Untitled'}
                                                         </ClampedText>
                                                     </td>
-                                                    <td>{items.total_hours}</td>
+                                                    <td>
+                                                        {items.total_hours.toFixed(
+                                                            2
+                                                        )}
+                                                    </td>
                                                     <td className="justify-self-end">
                                                         <input
                                                             name={'is_featured'}
@@ -216,13 +220,12 @@ const StudentProfile = () => {
                             </div>
                             <table className="table-2 mb-4">
                                 <thead>
-                                    <tr className="grid-col-3">
+                                    <tr className="grid-col-2">
+                                        <th className="justify-self-end">
+                                            Title
+                                        </th>
                                         <th className="justify-self-start">
                                             Rank
-                                        </th>
-                                        <th>Title</th>
-                                        <th className="justify-self-end">
-                                            Icon
                                         </th>
                                     </tr>
                                 </thead>
@@ -235,21 +238,19 @@ const StudentProfile = () => {
                                             ) => {
                                                 return (
                                                     <tr>
-                                                        <td className="justify-self-start">
-                                                            {index + 1}
-                                                        </td>
-                                                        <td>
-                                                            {' '}
-                                                            {items.title ??
-                                                                'Untitled'}
-                                                        </td>
                                                         <td className="justify-self-end">
                                                             <img
                                                                 className="h-8 mx-auto object-contain"
                                                                 src={
-                                                                    '/src/assets/react.svg'
+                                                                    items.thumbnail_url ??
+                                                                    ''
                                                                 }
                                                             />
+                                                        </td>
+                                                        {items.title ??
+                                                            'Untitled'}
+                                                        <td className="justify-self-start">
+                                                            {index + 1}
                                                         </td>
                                                     </tr>
                                                 );
@@ -258,17 +259,10 @@ const StudentProfile = () => {
                                     ) : (
                                         <tr>
                                             <td className="justify-self-start">
-                                                1
+                                                No Videos Found
                                             </td>
-                                            <td>Untitled</td>
-                                            <td className="justify-self-end">
-                                                <img
-                                                    className="h-8 mx-auto object-contain"
-                                                    src={
-                                                        '/src/assets/react.svg'
-                                                    }
-                                                />
-                                            </td>
+                                            <td></td>
+                                            <td className="justify-self-end"></td>
                                         </tr>
                                     )}
                                 </tbody>

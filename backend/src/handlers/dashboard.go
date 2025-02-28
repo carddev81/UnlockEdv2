@@ -32,26 +32,22 @@ func (srv *Server) handleResidentProfile(w http.ResponseWriter, r *http.Request,
 
 	loginData, err := srv.Db.GetLoginEngagementActivity(userID)
 	if err != nil {
-		http.Error(w, "Failed to fetch login engagement data", http.StatusInternalServerError)
-		return err
+		return newDatabaseServiceError(err)
 	}
 
 	activityEngagement, err := srv.Db.GetEngagementActivityMetrics(userID)
 	if err != nil {
-		http.Error(w, "Failed to fetch activity engagement data", http.StatusInternalServerError)
-		return err
+		return newDatabaseServiceError(err)
 	}
 
 	topLibraries, err := srv.Db.GetTopFiveLibrariesByUserID(userID)
 	if err != nil {
-		http.Error(w, "Failed to fetch library engagement data", http.StatusInternalServerError)
-		return err
+		return newDatabaseServiceError(err)
 	}
 
 	recentVideos, err := srv.Db.GetMostRecentFiveVideosByUserID(userID)
 	if err != nil {
-		http.Error(w, "Failed to fetch recent video data", http.StatusInternalServerError)
-		return err
+		return newDatabaseServiceError(err)
 	}
 
 	response := struct {

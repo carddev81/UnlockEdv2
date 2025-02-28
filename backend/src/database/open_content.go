@@ -379,8 +379,6 @@ func (db *DB) GetTopFiveLibrariesByUserID(userID int) ([]OpenContentResponse, er
 			END as is_featured,
 			SUM(EXTRACT(EPOCH FROM oca.duration) / 3600) AS total_hours,
 			SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
-			SUM(EXTRACT(EPOCH FROM oca.duration) / 3600) AS total_hours,
-			SUM(EXTRACT(EPOCH FROM oca.duration) / 60) AS total_minutes
 		`).
 		Joins(`join open_content_providers ocp ON ocp.id = lib.open_content_provider_id
 				AND ocp.currently_enabled = TRUE

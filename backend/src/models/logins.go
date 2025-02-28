@@ -45,9 +45,6 @@ type SessionEngagement struct {
 	TotalHours   float64 `json:"total_hours"`
 }
 
-// type LoginEngagementActivity struct {
-// 	UserEngagementTimes []SessionEngagement `json:"user_engagement_times"`
-// }
 
 type EngagementActivityMetrics struct {
 	UserID                   int64     `json:"user_id"`

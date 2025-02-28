@@ -12,6 +12,7 @@ export enum FeatureAccess {
     ProgramAccess = 'program_management'
 }
 export const INIT_KRATOS_LOGIN_FLOW = '/self-service/login/browser';
+
 export interface User {
     id: number;
     name_first: string;
@@ -340,7 +341,7 @@ export interface LoginMetrics {
         facility: string;
         new_residents_added: number;
         new_admins_added: number;
-        peak_login_times: PeakLoginTime[];
+        user_engagement_times: UserEngagementTimes[];
     };
     last_cache: string;
 }
@@ -783,22 +784,15 @@ interface Failure {
     error: string;
 }
 
-export interface PeakLoginTime {
+export interface UserEngagementTimes {
     time_interval: string;
     total_hours: number;
     facility_id: number;
 }
 
-export interface UserInfo {
-    user_id: number;
-    name_first: string;
-    name_last: string;
-    username: string;
-}
-
 export interface SessionEngagementActivityWithUserInfo {
-    user_info: UserInfo;
-    user_engagement_times: PeakLoginTime[];
+    user_info: User;
+    user_engagement_times: UserEngagementTimes[];
 }
 
 export interface EngagementActivityMetrics {

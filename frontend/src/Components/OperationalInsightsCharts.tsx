@@ -4,7 +4,7 @@ import { AxiosError } from 'axios';
 import { Facility, LoginMetrics, ServerResponseOne } from '@/common';
 import StatsCard from './StatsCard';
 import { ResponsiveContainer } from 'recharts';
-import NewEngagementRateGraph from './EngagementRateGraph';
+import EngagementRateGraph from './EngagementRateGraph';
 import { useAuth, canSwitchFacility } from '@/useAuth';
 
 const OperationalInsights = () => {
@@ -183,7 +183,8 @@ const OperationalInsights = () => {
                                 >
                                     <EngagementRateGraph
                                         data={
-                                            metrics?.data.peak_login_times || []
+                                            metrics?.data
+                                                .user_engagement_times || []
                                         }
                                         viewType="hourly"
                                     />

@@ -9,11 +9,11 @@ import {
     ResponsiveContainer
 } from 'recharts';
 import { ThemeContext } from '@/Context/ThemeContext';
-import { PeakLoginTime } from '@/common';
+import { UserEngagementTimes } from '@/common';
 
 interface EngagementRateGraphProps {
     viewType: 'hourly' | 'daily';
-    data: PeakLoginTime[];
+    data: UserEngagementTimes[];
 }
 
 const EngagementRateGraph = ({ data, viewType }: EngagementRateGraphProps) => {
