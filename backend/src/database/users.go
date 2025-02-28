@@ -350,15 +350,15 @@ func (db *DB) GetLoginEngagementActivity(userID int) (*LoginEngagementActivityWi
 
 	query := db.Table("user_session_tracking as ust").
 		Select(`ust.user_id,
-		u.name_first,
-		u.name_last,
-		u.username,
-		TO_CHAR(DATE(ust.session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval,
-		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 3600) AS total_hours,
-		SUM(EXTRACT(EPOCH FROM ust.session_duration) / 60) AS total_minutes`).
+	ANY_VALUE(u.name_first) AS name_first,
+	ANY_VALUE(u.name_last) AS name_last,
+	ANY_VALUE(u.username) AS username,
+	TO_CHAR(DATE(ust.session_start_ts), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time_interval,
+	SUM(EXTRACT(EPOCH FROM ust.session_duration) / 3600) AS total_hours,
+	SUM(EXTRACT(EPOCH FROM ust.session_duration) / 60) AS total_minutes`).
 		Joins("JOIN users u ON ust.user_id = u.id").
 		Where("ust.user_id = ?", userID).
-		Group("ust.user_id, u.name_first, u.name_last, time_interval, u.username").
+		Group("ust.user_id, time_interval").
 		Order("ust.user_id, time_interval")
 
 	if err := query.Find(&sessionEngagement).Error; err != nil {
