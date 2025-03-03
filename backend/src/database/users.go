@@ -333,15 +333,8 @@ func (db *DB) GetLoginActivity(days int, facilityID *uint) ([]models.LoginActivi
 	return acitvity, nil
 }
 
-// type UserInfo struct {
-// 	UserID    int64  `json:"user_id"`
-// 	NameFirst string `json:"name_first"`
-// 	NameLast  string `json:"name_last"`
-// 	Username  string `json:"username"`
-// }
-
 type LoginEngagementActivityWithUserInfo struct {
-	UserInfo            models.User                   `json:"user_info"`
+	UserInfo            models.User                `json:"user_info"`
 	UserEngagementTimes []models.SessionEngagement `json:"user_engagement_times"`
 }
 
@@ -368,21 +361,20 @@ func (db *DB) GetLoginEngagementActivity(userID int) (*LoginEngagementActivityWi
 	var usrInfo models.User
 
 	if len(sessionEngagement) > 0 {
-		usrInfo = models.User {
+		usrInfo = models.User{
 			DatabaseFields: models.DatabaseFields{
-				ID:uint(sessionEngagement[0].UserId),
-			},    
+				ID: uint(sessionEngagement[0].UserId),
+			},
 			NameFirst: sessionEngagement[0].NameFirst,
 			NameLast:  sessionEngagement[0].NameLast,
 			Username:  sessionEngagement[0].Username,
 		}
 	} else {
-		// TODO: I know that this should be logged better but I am not sure exactly how.
 		fmt.Println("No session data found for user.")
 	}
 
 	result := &LoginEngagementActivityWithUserInfo{
-		UserInfo:           usrInfo,
+		UserInfo:            usrInfo,
 		UserEngagementTimes: sessionEngagement,
 	}
 	return result, nil
